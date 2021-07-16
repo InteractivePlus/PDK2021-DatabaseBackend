@@ -60,7 +60,7 @@ class avatarMysql implements AvatarEntityFactory{
                             reject(err);
                         } else {
                             let returnedAvatarEntity:AvatarEntity={
-                                data:  createInfo.data, 
+                                data: createInfo.data, 
                                 salt: generatedHash, 
                                 uploadedBy: createInfo.uploadedBy, 
                                 uploadTimeGMTInSec: createInfo.uploadTimeGMTInSec
