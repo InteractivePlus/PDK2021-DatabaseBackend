@@ -1,0 +1,31 @@
+{
+    "compilerOptions": {
+        "module": "ESNext",
+        "outDir": "./dist",
+        "lib":["ES6","ESNext"],
+        "target": "ES5",
+        "noImplicitAny": true,
+        "removeComments": false,
+        "preserveConstEnums": true,
+        "sourceMap": true,
+        "allowJs": true,
+        "strict": true,
+        "moduleResolution": "Node",
+        "declaration": true,
+        "allowUmdGlobalAccess": false,
+        "noUnusedLocals": true,
+        "esModuleInterop": true,
+        "isolatedModules": true,
+        "resolveJsonModule": true,
+    },
+
+    "include": [
+        "src/**/*",
+        "src/*"
+    ],
+
+    "exclude": [
+        "dist",
+        "node_modules"
+    ],
+}
