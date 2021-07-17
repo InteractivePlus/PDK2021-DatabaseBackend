@@ -1,14 +1,44 @@
-import mysql, {Connection, RowDataPacket} from 'mysql2';
-import {MaskIDEntityFactory, MaskIDCreateEntity} from "@interactiveplus/pdk2021-backendcore/dist/MaskID/MaskIDEntityFactory";
-import {MaskIDEntity} from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/MaskID/MaskIDEntity";
-import { PDKAbstractDataTypes, PDKInternalDataTypes } from 'pdk2021-common';
+import {Connection} from 'mysql2';
+import {MaskIDEntityFactory, MaskIDCreateEntity} from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/MaskID/MaskIDEntityFactory";
+import {MaskIDEntity, MaskUID} from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/MaskID/MaskIDEntity";
+import {generateRandomHexString} from "@interactiveplus/pdk2021-common/dist/Utilities/HEXString";
+import { convertErorToPDKStorageEngineError } from './Utils/MySQLErrorUtil';
+import { PDKInnerArgumentError, PDKItemNotFoundError, PDKUnknownInnerError } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/Error/PDKException';
+import { APPUID } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/RegisteredAPP/APPEntityFormat';
+import { UserEntityUID } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/User/UserEntity';
+import { SearchResult } from '@interactiveplus/pdk2021-common/dist/InternalDataTypes/SearchResult';
 
-class maskMysql implements MaskIDEntityFactory{
+class MaskFactoryMySQL implements MaskIDEntityFactory{
     constructor (public mysqlConnection:Connection) {}
 
-    createMaskIDEntity(createEntity: MaskIDCreateEntity): Promise<PDKAbstractDataTypes.MaskIDEntity>{
+    public static parseMaskIDEntityFromDB(dbObject : any) : MaskIDEntity{
+        if ("relatedUID" in dbObject && 
+            "maskUID" in dbObject && 
+            "displayName" in dbObject &&
+            "createTime" in dbObject &&
+            "currentAuthorizedAPPUIDs" in dbObject &&
+            "pastAuthorizedAPPUIDs" in dbObject &&
+            "settings" in dbObject) 
+        { 
+            let returnedMaskEntity : MaskIDEntity = {
+                relatedUID : dbObject.relatedUID, 
+                maskUID : dbObject.maskUID,
+                displayName : dbObject.displayName,
+                createTime: dbObject.createTime,
+                currentAuthorizedAPPUIDs : dbObject.currentAuthorizedAPPUIDs,
+                pastAuthorizedAPPUIDs: dbObject.pastAuthorizedAPPUIDs,
+                settings : dbObject.settings
+            }
+            return returnedMaskEntity;
+        }else{
+            throw new PDKInnerArgumentError<'dbObject'>(['dbObject'], 'Unexpected Incomplete MaskIDEntity received from DB');
+        }
+    }
+
+    createMaskIDEntity(createEntity: MaskIDCreateEntity): Promise<MaskIDEntity>{
         return new Promise<MaskIDEntity>(
             (resolve, reject) =>{
+                let generatedMaskUID = generateRandomHexString(40);
                 let createStatement = 
                 `INSERT INTO maskIDs
                 (relatedUID, maskUID, displayName, createTime, currentAuthorizedAPPUIDs, pastAuthorizedAPPUIDs, settings)
@@ -17,25 +47,25 @@ class maskMysql implements MaskIDEntityFactory{
                     createStatement,
                     [
                         createEntity.relatedUID,
-                        createEntity.maskUID,
+                        generatedMaskUID,
                         createEntity.displayName,
                         createEntity.createTime,
                         createEntity.currentAuthorizedAPPUIDs,
                         createEntity.pastAuthorizedAPPUIDs,
-                        createEntity.settinggs
+                        createEntity.settings
                     ],
                     function(err, result, fields){
                         if (err !== null){
-                            reject(err);
+                            reject(convertErorToPDKStorageEngineError(err));
                         } else {
                             let returnedMaskEntity:MaskIDEntity = {
                                 relatedUID: createEntity.relatedUID,
-                                maskUID: createEntity.maskUID,
+                                maskUID: generatedMaskUID,
                                 displayName: createEntity.displayName,
                                 createTime: createEntity.createTime,
                                 currentAuthorizedAPPUIDs: createEntity.currentAuthorizedAPPUIDs,
                                 pastAuthorizedAPPUIDs: createEntity.pastAuthorizedAPPUIDs,
-                                settings: createEntity.settinggs
+                                settings: createEntity.settings
                             }
                             resolve(returnedMaskEntity)
                         }
@@ -45,7 +75,7 @@ class maskMysql implements MaskIDEntityFactory{
         )
     }
 
-    getMaskIDEntity(maskUID: PDKAbstractDataTypes.MaskUID): Promise<PDKAbstractDataTypes.MaskIDEntity | undefined>{
+    getMaskIDEntity(maskUID: MaskUID): Promise<MaskIDEntity | undefined>{
         return new Promise<MaskIDEntity |undefined>(
             (resolve, reject) => {
                 let selectStatement = `SELECT * FROM maskIDs WHERE maskUID = ?`;
@@ -57,30 +87,10 @@ class maskMysql implements MaskIDEntityFactory{
                             if ( result.length === 0 ) {
                             resolve (undefined);
                             } else {
-                                if ("relatedUID" in result[0] && 
-                                    "maskUID" in result[0] && 
-                                    "displayName" in result[0] &&
-                                    "createTime" in result[0] &&
-                                    "currentAuthorizedAPPUIDs" in result[0] &&
-                                    "pastAuthorizedAPPUIDs" in result[0] &&
-                                    "settings" in result[0]) 
-                                { 
-                                    let returnedMaskEntity : MaskIDEntity = {
-                                    "relatedUID" : result[0].relatedUID, 
-                                    "maskUID" : result[0].maskUID,
-                                    "displayName" : result[0].displayName,
-                                    "createTime": result[0].createTime,
-                                    "currentAuthorizedAPPUIDs" : result[0].currentAuthorizedAPPUIDs,
-                                    "pastAuthorizedAPPUIDs" : result[0].pastAuthorizedAPPUIDs,
-                                    "settings" : result[0].settings
-                                    }
-                                    resolve(returnedMaskEntity)
-                                } else {
-                                    reject("missing fileds")
-                                }
+                                resolve(MaskFactoryMySQL.parseMaskIDEntityFromDB(result[0]));
                             }
                         } else {
-                            reject("unexpected error")
+                            reject(new PDKUnknownInnerError("Unexpected datatype received when fetching MYSQL data from MASKID System"))
                         }
                     }
                 })
@@ -88,16 +98,16 @@ class maskMysql implements MaskIDEntityFactory{
         )
     }
     
-    updateMaskIDEntity(maskUID: PDKAbstractDataTypes.MaskUID, maskEntity: PDKAbstractDataTypes.MaskIDEntity, oldMaskEntity?: PDKAbstractDataTypes.MaskIDEntity): Promise<void>{
+    updateMaskIDEntity(maskUID: MaskUID, maskEntity: MaskIDEntity, oldMaskEntity?: MaskIDEntity): Promise<void>{
         return new Promise<void>(
             (resolve, reject) => {
                 let updateStatement = 
                 ` UPDATE maskIDs SET
-                relatedID = ?, displayName = ?, createTime = ? currentAuthorizedAPPUIDs = ?, pastAuthorizedAPPUIDs = ?, settings = ?,
+                relatedUID = ?, displayName = ?, createTime = ? currentAuthorizedAPPUIDs = ?, pastAuthorizedAPPUIDs = ?, settings = ?,
                 WHERE maskUID = ?;`;
                 this.mysqlConnection.execute(updateStatement, 
                     [
-                        maskEntity.relatedID,
+                        maskEntity.relatedUID,
                         maskEntity.displayName,
                         maskEntity.createTime,
                         maskEntity.currentAuthorizedAPPUIDs,
@@ -107,10 +117,10 @@ class maskMysql implements MaskIDEntityFactory{
                     ], 
                     (err, result, fields)=>{
                         if (err !== null){
-                            reject(err);
+                            reject(convertErorToPDKStorageEngineError(err));
                         } else {
                             if ("affectedRows" in result && result.affectedRows === 0 ) {
-                                reject("no maskUID found")
+                                reject(new PDKItemNotFoundError<'maskUID'>(['maskUID']));
                             } else {
                                 resolve()
                             }
@@ -121,8 +131,7 @@ class maskMysql implements MaskIDEntityFactory{
         )
     }
 
-
-    deleteMaskIDEntity(maskUID: PDKAbstractDataTypes.MaskUID): Promise<void>{
+    deleteMaskIDEntity(maskUID: MaskUID): Promise<void>{
         return new Promise<void>(
             (resolve, reject) => {
                 let deleteStatement = `DELETE FROM maskIDs WHERE maskUID = ?;`;
@@ -132,9 +141,9 @@ class maskMysql implements MaskIDEntityFactory{
                             reject(err);
                         } else {
                             if ("affectedRows" in result && result.affectedRows === 0 ) {
-                                reject("no maskUID found")
+                                reject(new PDKItemNotFoundError<'maskUID'>(['maskUID']));
                             } else {
-                                resolve()
+                                resolve();
                             }
                         }
                     }
@@ -143,16 +152,178 @@ class maskMysql implements MaskIDEntityFactory{
         )
     }
 
+    getMaskIDEntityCount(
+        maskUID?: MaskUID, 
+        displayName?: string, 
+        userUID?: UserEntityUID, 
+        appUID?: APPUID, 
+        createTimeMin?: number, 
+        createTimeMax?: number
+    ): Promise<number>{
+        return new Promise<number>(
+            (resolve, reject) => {
+                let selectStatement = `SELECT count(*) as count FROM maskIDs`;
+                let allParams : any[] = [];
+                let allWHERESubClause : string[] = [];
+                if(maskUID !== undefined){
+                    allWHERESubClause.push('maskUID = ?');
+                    allParams.push(maskUID);
+                }
+                if(displayName !== undefined){
+                    allWHERESubClause.push('displayName LIKE ?');
+                    allParams.push('%' + displayName + '%');
+                }
+                if(userUID !== undefined){
+                    allWHERESubClause.push('relatedUID = ?');
+                    allParams.push(userUID);
+                }
+                if(appUID !== undefined){
+                    allWHERESubClause.push('(FIND_IN_SET(?,currentAuthorizedAPPUIDs) > 0 OR FIND_INSET(?, pastAuthorizedAPPUIDs) > 0 )');
+                    allParams.push(appUID,appUID);
+                }
+                if(createTimeMin !== undefined){
+                    allWHERESubClause.push('createTime >= ?');
+                    allParams.push(createTimeMin);
+                }
+                if(createTimeMax !== undefined){
+                    allWHERESubClause.push('createTime <= ?');
+                    allParams.push(createTimeMax);
+                }
+                selectStatement += allWHERESubClause.length > 1 ? ' WHERE ' + allWHERESubClause.join(' AND ') : '';
 
-    // getMaskIDEntityCount(maskUID?: PDKAbstractDataTypes.MaskUID, displayName?: string, userUID?: PDKAbstractDataTypes.UserEntityUID, appUID?: PDKAbstractDataTypes.APPUID, createTimeMin?: number, createTimeMax?: number): number;
-    // searchMaskIDEntity(maskUID?: PDKAbstractDataTypes.MaskUID, displayName?: string, userUID?: PDKAbstractDataTypes.UserEntityUID, appUID?: PDKAbstractDataTypes.APPUID, createTimeMin?: number, createTimeMax?: number, numLimit?: number, startPosition?: number): PDKInternalDataTypes.SearchResult<PDKAbstractDataTypes.MaskIDEntity>;
-    // clearMaskIDEntity(maskUID?: PDKAbstractDataTypes.MaskUID, displayName?: string, userUID?: PDKAbstractDataTypes.UserEntityUID, appUID?: PDKAbstractDataTypes.APPUID, createTimeMin?: number, createTimeMax?: number, numLimit?: number, startPosition?: number): void;
+                this.mysqlConnection.execute(selectStatement, allParams, 
+                    (err, result, fields) => {
+                        if (err !== null) {
+                            reject(convertErorToPDKStorageEngineError(err));
+                        } else {
+                            if('length' in result && result.length !== 0 && 'count' in result[0]){
+                                resolve(
+                                    result[0].count
+                                )
+                            }
+                        }
+                    }
+                );
+            }
+        );
+    }
+    
+    searchMaskIDEntity(maskUID?: MaskUID, displayName?: string, userUID?: UserEntityUID, appUID?: APPUID, createTimeMin?: number, createTimeMax?: number, numLimit?: number, startPosition?: number): Promise<SearchResult<MaskIDEntity>>{
+        return new Promise<SearchResult<MaskIDEntity>>(
+            (resolve, reject) => {
+                let selectStatement = `SELECT * FROM maskIDs`;
+                let allParams : any[] = [];
+                let allWHERESubClause : string[] = [];
+                if(maskUID !== undefined){
+                    allWHERESubClause.push('maskUID = ?');
+                    allParams.push(maskUID);
+                }
+                if(displayName !== undefined){
+                    allWHERESubClause.push('displayName LIKE ?');
+                    allParams.push('%' + displayName + '%');
+                }
+                if(userUID !== undefined){
+                    allWHERESubClause.push('relatedUID = ?');
+                    allParams.push(userUID);
+                }
+                if(appUID !== undefined){
+                    allWHERESubClause.push('(FIND_IN_SET(?,currentAuthorizedAPPUIDs) > 0 OR FIND_INSET(?, pastAuthorizedAPPUIDs) > 0 )');
+                    allParams.push(appUID,appUID);
+                }
+                if(createTimeMin !== undefined){
+                    allWHERESubClause.push('createTime >= ?');
+                    allParams.push(createTimeMin);
+                }
+                if(createTimeMax !== undefined){
+                    allWHERESubClause.push('createTime <= ?');
+                    allParams.push(createTimeMax);
+                }
+                selectStatement += allWHERESubClause.length > 1 ? ' WHERE ' + allWHERESubClause.join(' AND ') : '';
+                if(numLimit !== undefined){
+                    selectStatement += ' LIMIT ' + numLimit;
+                }
+                if(startPosition !== undefined){
+                    selectStatement += ' OFFSET ' + startPosition;
+                }
 
-    createTable(){
+                this.mysqlConnection.execute(selectStatement, allParams, 
+                    (err, result, fields) => {
+                        if (err !== null) {
+                            reject(convertErorToPDKStorageEngineError(err));
+                        } else {
+                            if('length' in result && result.length !== 0 && 'count' in result[0]){
+                                let parsedEntities : MaskIDEntity[] = [];
+                                result.forEach((value) => {
+                                    parsedEntities.push(MaskFactoryMySQL.parseMaskIDEntityFromDB(value));
+                                });
+                                resolve(new SearchResult<MaskIDEntity>(
+                                    parsedEntities.length,
+                                    parsedEntities
+                                ));
+                            }
+                        }
+                    }
+                );
+            }
+        )
+    }
+    
+    clearMaskIDEntity(maskUID?: MaskUID, displayName?: string, userUID?: UserEntityUID, appUID?: APPUID, createTimeMin?: number, createTimeMax?: number, numLimit?: number, startPosition?: number): Promise<void>{
+        return new Promise<void>(
+            (resolve, reject) => {
+                let selectStatement = `DELETE FROM maskIDs`;
+                let allParams : any[] = [];
+                let allWHERESubClause : string[] = [];
+                if(maskUID !== undefined){
+                    allWHERESubClause.push('maskUID = ?');
+                    allParams.push(maskUID);
+                }
+                if(displayName !== undefined){
+                    allWHERESubClause.push('displayName LIKE ?');
+                    allParams.push('%' + displayName + '%');
+                }
+                if(userUID !== undefined){
+                    allWHERESubClause.push('relatedUID = ?');
+                    allParams.push(userUID);
+                }
+                if(appUID !== undefined){
+                    allWHERESubClause.push('(FIND_IN_SET(?,currentAuthorizedAPPUIDs) > 0 OR FIND_INSET(?, pastAuthorizedAPPUIDs) > 0 )');
+                    allParams.push(appUID,appUID);
+                }
+                if(createTimeMin !== undefined){
+                    allWHERESubClause.push('createTime >= ?');
+                    allParams.push(createTimeMin);
+                }
+                if(createTimeMax !== undefined){
+                    allWHERESubClause.push('createTime <= ?');
+                    allParams.push(createTimeMax);
+                }
+                selectStatement += allWHERESubClause.length > 1 ? ' WHERE ' + allWHERESubClause.join(' AND ') : '';
+                if(numLimit !== undefined){
+                    selectStatement += ' LIMIT ' + numLimit;
+                }
+                if(startPosition !== undefined){
+                    selectStatement += ' OFFSET ' + startPosition;
+                }
+
+                this.mysqlConnection.execute(selectStatement, allParams, 
+                    (err, result, fields) => {
+                        if (err !== null) {
+                            reject(convertErorToPDKStorageEngineError(err));
+                        } else {
+                            resolve();
+                        }
+                    }
+                );
+            }
+        );
+    }
+
+    install() : Promise<void>{
         let createCommand = `CREATE TABLE maskIDs 
                             (
                                 'relatedUID' VARCAHR(100),
-                                'maskUID' VARCHAR(100),
+                                'maskUID' CHAR(40),
                                 'displayName' VARCHAR(40),
                                 'createTime' INT UNSIGED,
                                 'currentAuthorizedAPPUIDs' VARCHAR SET;
@@ -174,6 +345,35 @@ class maskMysql implements MaskIDEntityFactory{
         })
     }
 
+    uninstall(): Promise<void>{
+        let createCommand = `DROP TABLE maskIDs`;
+        return new Promise((resolve, reject) =>{
+            this.mysqlConnection.query(
+                createCommand,
+                function(err, result, fields) {
+                    if (err !== null){
+                        reject(err);
+                    } else {
+                        resolve (undefined);
+                    }
+                }
+            )
+        })
+    }
 
-
+    clearData(): Promise<void>{
+        let createCommand = `TRUNCATE TABLE maskIDs `;
+        return new Promise((resolve, reject) =>{
+            this.mysqlConnection.query(
+                createCommand,
+                function(err, result, fields) {
+                    if (err !== null){
+                        reject(err);
+                    } else {
+                        resolve (undefined);
+                    }
+                }
+            )
+        })
+    }
 }
