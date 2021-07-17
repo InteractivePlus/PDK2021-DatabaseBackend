@@ -207,7 +207,7 @@ class AvatarFactoryMySQL implements AvatarEntityFactory{
         }
     }
 
-    createTable() {
+    install() : Promise<void> {
         //SHA1
         let tableCommand = `CREATE TABLE avatars 
                             (
@@ -224,9 +224,39 @@ class AvatarFactoryMySQL implements AvatarEntityFactory{
             tableCommand, 
             function(err, results, fields) {
                 if(err !== null){
-                    reject(err);
+                    reject(convertErorToPDKStorageEngineError(err));
                 }else{
-                    resolve(undefined);
+                    resolve();
+                }
+            })
+        });
+    }
+
+    uninstall(): Promise<void>{
+        let tableCommand = `DROP TABLE avatars`;
+        return new Promise((resolve, reject) => {
+            this.mysqlConnection.query(
+            tableCommand, 
+            function(err, results, fields) {
+                if(err !== null){
+                    reject(convertErorToPDKStorageEngineError(err));
+                }else{
+                    resolve();
+                }
+            })
+        });
+    }
+
+    clearData(): Promise<void>{
+        let tableCommand = `TRUNCATE TABLE avatars`;
+        return new Promise((resolve, reject) => {
+            this.mysqlConnection.query(
+            tableCommand, 
+            function(err, results, fields) {
+                if(err !== null){
+                    reject(convertErorToPDKStorageEngineError(err));
+                }else{
+                    resolve();
                 }
             })
         });
