@@ -4,7 +4,7 @@ import {AvatarEntity} from "@interactiveplus/pdk2021-common/dist/AbstractDataTyp
 import sha1 from 'simple-sha1';
 import { BackendAvatarSystemSetting } from '@interactiveplus/pdk2021-backendcore/dist/AbstractDataTypes/SystemSetting/BackendAvatarSystemSetting';
 import * as PDKExceptions from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/Error/PDKException';
-import { convertErorToPDKStorageEngineError } from './Utils.ts/MySQLErrorUtil';
+import { convertErorToPDKStorageEngineError } from './Utils/MySQLErrorUtil';
 
 
 class AvatarFactoryMySQL implements AvatarEntityFactory{
