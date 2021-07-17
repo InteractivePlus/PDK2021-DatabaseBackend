@@ -13,10 +13,6 @@ class AvatarFactoryMySQL implements AvatarEntityFactory{
         public mysqlConnection:Connection
     ) {}
 
-    public static setABC(){
-
-    }
-
     getAvatarSystemSetting() : BackendAvatarSystemSetting{
         return this.systemSetting;
     }
@@ -262,3 +258,5 @@ class AvatarFactoryMySQL implements AvatarEntityFactory{
         });
     }
 }
+
+export { AvatarFactoryMySQL };
