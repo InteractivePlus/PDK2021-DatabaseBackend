@@ -14,6 +14,10 @@ class AvatarFactoryMySQL implements AvatarEntityFactory{
         public mysqlConnection:Connection
     ) {}
 
+    getAvatarSaltLength(): number {
+        return 40;
+    }
+
     getAvatarSystemSetting() : BackendAvatarSystemSetting{
         return this.systemSetting;
     }
