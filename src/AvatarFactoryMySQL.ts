@@ -1,10 +1,11 @@
 import {Connection} from 'mysql2';
-import {AvatarEntityFactory, AvatarCreateEntity} from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/Avatar/AvatarEntityFactory";
+import {AvatarEntityFactory, AvatarCreateEntity, AvatarEntityFactoryInstallInfo} from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/Avatar/AvatarEntityFactory";
 import {AvatarEntity} from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/Avatar/AvatarEntity";
 import sha1 from 'simple-sha1';
 import { BackendAvatarSystemSetting } from '@interactiveplus/pdk2021-backendcore/dist/AbstractDataTypes/SystemSetting/BackendAvatarSystemSetting';
 import * as PDKExceptions from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/Error/PDKException';
 import { convertErorToPDKStorageEngineError } from './Utils/MySQLErrorUtil';
+import { getSQLTypeFor } from './Utils/MySQLTypeUtil';
 
 
 class AvatarFactoryMySQL implements AvatarEntityFactory{
@@ -203,7 +204,9 @@ class AvatarFactoryMySQL implements AvatarEntityFactory{
         }
     }
 
-    install() : Promise<void> {
+    install(params : AvatarEntityFactoryInstallInfo) : Promise<void> {
+        let UIDMySQLType = getSQLTypeFor(params.userEntityFactory.isUserUIDNumber(), params.userEntityFactory.getUserUIDMaxLen(), params.userEntityFactory.getUserUIDExactLen !== undefined ? params.userEntityFactory.getUserUIDExactLen() : undefined);
+        
         //SHA1
         let tableCommand = `CREATE TABLE avatars 
                             (
@@ -211,7 +214,7 @@ class AvatarFactoryMySQL implements AvatarEntityFactory{
                                 'data_content_type' TINYINT,
                                 'data_content' MEDIUMBLOB NOT NULL,
                                 'salt' CHAR(40) NOT NULL,
-                                'uploaded_by' VARCHAR(100),
+                                'uploaded_by' ${UIDMySQLType},
                                 'upload_time' INT UNSINGED,
                                 PRIMARY KEY (salt)
                             );`;

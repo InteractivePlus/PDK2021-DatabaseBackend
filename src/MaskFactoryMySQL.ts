@@ -1,23 +1,27 @@
 import {Connection} from 'mysql2';
 import {MaskIDEntityFactory, MaskIDCreateEntity} from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/MaskID/MaskIDEntityFactory";
+import {OAuthTokenFactory} from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/OAuth/Token/OAuthTokenFactory";
 import {MaskIDEntity, MaskUID} from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/MaskID/MaskIDEntity";
 import {generateRandomHexString} from "@interactiveplus/pdk2021-common/dist/Utilities/HEXString";
 import { convertErorToPDKStorageEngineError } from './Utils/MySQLErrorUtil';
 import { PDKInnerArgumentError, PDKItemNotFoundError, PDKUnknownInnerError } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/Error/PDKException';
-import { APPUID } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/RegisteredAPP/APPEntityFormat';
 import { UserEntityUID } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/User/UserEntity';
 import { SearchResult } from '@interactiveplus/pdk2021-common/dist/InternalDataTypes/SearchResult';
+import { BackendOAuthSystemSetting }  from '@interactiveplus/pdk2021-backendcore/dist/AbstractDataTypes/SystemSetting/BackendOAuthSystemSetting';
 
 class MaskFactoryMySQL implements MaskIDEntityFactory{
-    constructor (public mysqlConnection:Connection) {}
+    constructor (
+        public mysqlConnection:Connection, 
+        public oAuthAccessTokenFactory: OAuthTokenFactory<any,any>,
+        public maskIDLength : number,
+        protected oAuthSystemSetting: BackendOAuthSystemSetting
+    ) {}
 
     public static parseMaskIDEntityFromDB(dbObject : any) : MaskIDEntity{
         if ("relatedUID" in dbObject && 
             "maskUID" in dbObject && 
             "displayName" in dbObject &&
             "createTime" in dbObject &&
-            "currentAuthorizedAPPUIDs" in dbObject &&
-            "pastAuthorizedAPPUIDs" in dbObject &&
             "settings" in dbObject) 
         { 
             let returnedMaskEntity : MaskIDEntity = {
@@ -25,8 +29,6 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
                 maskUID : dbObject.maskUID,
                 displayName : dbObject.displayName,
                 createTime: dbObject.createTime,
-                currentAuthorizedAPPUIDs : dbObject.currentAuthorizedAPPUIDs,
-                pastAuthorizedAPPUIDs: dbObject.pastAuthorizedAPPUIDs,
                 settings : dbObject.settings
             }
             return returnedMaskEntity;
@@ -35,14 +37,25 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
         }
     }
 
+    getMaskIDMaxLength(): number{
+        return this.maskIDLength;
+    }
+    getMaskExactLength(): number{
+        return this.maskIDLength;
+    }
+
+    getOAuthSystemSetting() : BackendOAuthSystemSetting{
+        return this.oAuthSystemSetting;
+    }
+
     createMaskIDEntity(createEntity: MaskIDCreateEntity): Promise<MaskIDEntity>{
         return new Promise<MaskIDEntity>(
             (resolve, reject) =>{
                 let generatedMaskUID = generateRandomHexString(40);
                 let createStatement = 
                 `INSERT INTO maskIDs
-                (relatedUID, maskUID, displayName, createTime, currentAuthorizedAPPUIDs, pastAuthorizedAPPUIDs, settings)
-                VALUES (?, ?, ?, ?, ?, ?, ?)`;
+                (relatedUID, maskUID, displayName, createTime, settings)
+                VALUES (?, ?, ?, ?, ?)`;
                 this.mysqlConnection.execute(
                     createStatement,
                     [
@@ -50,8 +63,6 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
                         generatedMaskUID,
                         createEntity.displayName,
                         createEntity.createTime,
-                        createEntity.currentAuthorizedAPPUIDs,
-                        createEntity.pastAuthorizedAPPUIDs,
                         createEntity.settings
                     ],
                     function(err, result, fields){
@@ -63,8 +74,6 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
                                 maskUID: generatedMaskUID,
                                 displayName: createEntity.displayName,
                                 createTime: createEntity.createTime,
-                                currentAuthorizedAPPUIDs: createEntity.currentAuthorizedAPPUIDs,
-                                pastAuthorizedAPPUIDs: createEntity.pastAuthorizedAPPUIDs,
                                 settings: createEntity.settings
                             }
                             resolve(returnedMaskEntity)
@@ -103,15 +112,13 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
             (resolve, reject) => {
                 let updateStatement = 
                 ` UPDATE maskIDs SET
-                relatedUID = ?, displayName = ?, createTime = ? currentAuthorizedAPPUIDs = ?, pastAuthorizedAPPUIDs = ?, settings = ?,
+                relatedUID = ?, displayName = ?, createTime = ? settings = ?,
                 WHERE maskUID = ?;`;
                 this.mysqlConnection.execute(updateStatement, 
                     [
                         maskEntity.relatedUID,
                         maskEntity.displayName,
                         maskEntity.createTime,
-                        maskEntity.currentAuthorizedAPPUIDs,
-                        maskEntity.pastAuthorizedAPPUIDs,
                         maskEntity.settings,
                         maskUID
                     ], 
@@ -155,8 +162,7 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
     getMaskIDEntityCount(
         maskUID?: MaskUID, 
         displayName?: string, 
-        userUID?: UserEntityUID, 
-        appUID?: APPUID, 
+        userUID?: UserEntityUID,  
         createTimeMin?: number, 
         createTimeMax?: number
     ): Promise<number>{
@@ -176,10 +182,6 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
                 if(userUID !== undefined){
                     allWHERESubClause.push('relatedUID = ?');
                     allParams.push(userUID);
-                }
-                if(appUID !== undefined){
-                    allWHERESubClause.push('(FIND_IN_SET(?,currentAuthorizedAPPUIDs) > 0 OR FIND_INSET(?, pastAuthorizedAPPUIDs) > 0 )');
-                    allParams.push(appUID,appUID);
                 }
                 if(createTimeMin !== undefined){
                     allWHERESubClause.push('createTime >= ?');
@@ -208,7 +210,7 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
         );
     }
     
-    searchMaskIDEntity(maskUID?: MaskUID, displayName?: string, userUID?: UserEntityUID, appUID?: APPUID, createTimeMin?: number, createTimeMax?: number, numLimit?: number, startPosition?: number): Promise<SearchResult<MaskIDEntity>>{
+    searchMaskIDEntity(maskUID?: MaskUID, displayName?: string, userUID?: UserEntityUID, createTimeMin?: number, createTimeMax?: number, numLimit?: number, startPosition?: number): Promise<SearchResult<MaskIDEntity>>{
         return new Promise<SearchResult<MaskIDEntity>>(
             (resolve, reject) => {
                 let selectStatement = `SELECT * FROM maskIDs`;
@@ -225,10 +227,6 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
                 if(userUID !== undefined){
                     allWHERESubClause.push('relatedUID = ?');
                     allParams.push(userUID);
-                }
-                if(appUID !== undefined){
-                    allWHERESubClause.push('(FIND_IN_SET(?,currentAuthorizedAPPUIDs) > 0 OR FIND_INSET(?, pastAuthorizedAPPUIDs) > 0 )');
-                    allParams.push(appUID,appUID);
                 }
                 if(createTimeMin !== undefined){
                     allWHERESubClause.push('createTime >= ?');
@@ -268,7 +266,7 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
         )
     }
     
-    clearMaskIDEntity(maskUID?: MaskUID, displayName?: string, userUID?: UserEntityUID, appUID?: APPUID, createTimeMin?: number, createTimeMax?: number, numLimit?: number, startPosition?: number): Promise<void>{
+    clearMaskIDEntity(maskUID?: MaskUID, displayName?: string, userUID?: UserEntityUID, createTimeMin?: number, createTimeMax?: number, numLimit?: number, startPosition?: number): Promise<void>{
         return new Promise<void>(
             (resolve, reject) => {
                 let selectStatement = `DELETE FROM maskIDs`;
@@ -285,10 +283,6 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
                 if(userUID !== undefined){
                     allWHERESubClause.push('relatedUID = ?');
                     allParams.push(userUID);
-                }
-                if(appUID !== undefined){
-                    allWHERESubClause.push('(FIND_IN_SET(?,currentAuthorizedAPPUIDs) > 0 OR FIND_INSET(?, pastAuthorizedAPPUIDs) > 0 )');
-                    allParams.push(appUID,appUID);
                 }
                 if(createTimeMin !== undefined){
                     allWHERESubClause.push('createTime >= ?');
@@ -319,16 +313,24 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
         );
     }
 
+    getNicknameMaxLen() : number{
+        let nicknameMaxLen = 0;
+        if(this.oAuthSystemSetting.maskIDEntityFormat.nicknameMaxLen !== undefined){
+            nicknameMaxLen = this.oAuthSystemSetting.maskIDEntityFormat.nicknameMaxLen;
+        }else{
+            nicknameMaxLen = 100;
+        }
+        return nicknameMaxLen;
+    }
+
     install() : Promise<void>{
         let createCommand = `CREATE TABLE maskIDs 
                             (
                                 'relatedUID' VARCAHR(100),
-                                'maskUID' CHAR(40),
-                                'displayName' VARCHAR(40),
+                                'maskUID' CHAR(${this.maskIDLength}),
+                                'displayName' VARCHAR(${this.getNicknameMaxLen()}),
                                 'createTime' INT UNSIGED,
-                                'currentAuthorizedAPPUIDs' VARCHAR SET;
-                                'pastAuthorizedAPPUIDs' VARCHAR SET;
-                                'settings' JSON NOT NULL; 
+                                'settings' JSON NOT NULL,
                                 PRIMARY KEY (maskUID)
                             );`;
         return new Promise((resolve, reject) =>{
@@ -342,7 +344,7 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
                     }
                 }
             )
-        })
+        });
     }
 
     uninstall(): Promise<void>{
@@ -377,3 +379,5 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
         })
     }
 }
+
+export {MaskFactoryMySQL};
