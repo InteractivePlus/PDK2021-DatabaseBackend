@@ -1,8 +1,8 @@
-import mysql, {Connection} from 'mysql2';
+import {Connection} from 'mysql2';
 import {VerificationCodeEntityFactory, VerificationCodeCreateEntity, VerificationCodeEntityFactoryInstallInfo} from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/Communication/VerificationCode/VerificationCodeEntityFactory";
 import {VerificationCodeEntity} from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/Communication/VerificationCode/VerificationCodeEntity"
 import { BackendCommunicationSystemSetting } from '@interactiveplus/pdk2021-backendcore/dist/AbstractDataTypes/SystemSetting/BackendCommunicationSystemSetting';
-import { CommunicationSystemSetting } from '../../pdk2021-common/dist/AbstractDataTypes/SystemSetting/CommunicationSystemSetting';
+import { CommunicationSystemSetting } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/SystemSetting/CommunicationSystemSetting';
 import { getMySQLTypeForAPPClientID, getMySQLTypeForAPPEntityUID, getMySQLTypeForMaskIDUID, getMySQLTypeForOAuthToken, getMySQLTypeForUserUID } from './Utils/MySQLTypeUtil';
 import { convertErorToPDKStorageEngineError } from './Utils/MySQLErrorUtil';
 
@@ -48,8 +48,6 @@ class VericodeFactoryMySQL implements VerificationCodeEntityFactory<VericodeFact
     }
     
     install(params : VerificationCodeEntityFactoryInstallInfo) : Promise<void> {
-
-        //SHA1
         let createLongCodeTable = 
         `CREATE TABLE vericode_long_codes 
         (

@@ -65,37 +65,38 @@ class AvatarFactoryMySQL implements AvatarEntityFactory{
     }
 
     uploadNewAvatar(createInfo: AvatarCreateEntity): Promise<AvatarEntity>{
-        let generatedHash = sha1.sync(createInfo.data.content);
         return new Promise<AvatarEntity>(
             (resolve, reject) => {
-                let createStatement = 
-                `INSERT INTO avatars 
-                (data_type, data_content_type, data_content, salt, uploaded_by, upload_time) 
-                VALUES (?, ?, ?, ?, ?, ?)`;
-                this.mysqlConnection.execute(
-                    createStatement, 
-                    [
-                        createInfo.data.type,
-                        createInfo.data.contentType,
-                        createInfo.data.content, 
-                        generatedHash,
-                        createInfo.uploadedBy, 
-                        createInfo.uploadTimeGMTInSec
-                    ], 
-                    function(err, result, fields){
-                        if (err !== null) {
-                            reject(convertErorToPDKStorageEngineError(err));
-                        } else {
-                            let returnedAvatarEntity:AvatarEntity={
-                                data: createInfo.data, 
-                                salt: generatedHash, 
-                                uploadedBy: createInfo.uploadedBy, 
-                                uploadTimeGMTInSec: createInfo.uploadTimeGMTInSec
+                sha1(createInfo.data.content,(generatedHash => {
+                    let createStatement = 
+                    `INSERT INTO avatars 
+                    (data_type, data_content_type, data_content, salt, uploaded_by, upload_time) 
+                    VALUES (?, ?, ?, ?, ?, ?)`;
+                    this.mysqlConnection.execute(
+                        createStatement, 
+                        [
+                            createInfo.data.type,
+                            createInfo.data.contentType,
+                            createInfo.data.content, 
+                            generatedHash,
+                            createInfo.uploadedBy, 
+                            createInfo.uploadTimeGMTInSec
+                        ], 
+                        function(err, result, fields){
+                            if (err !== null) {
+                                reject(convertErorToPDKStorageEngineError(err));
+                            } else {
+                                let returnedAvatarEntity:AvatarEntity={
+                                    data: createInfo.data, 
+                                    salt: generatedHash, 
+                                    uploadedBy: createInfo.uploadedBy, 
+                                    uploadTimeGMTInSec: createInfo.uploadTimeGMTInSec
+                                }
+                                resolve(returnedAvatarEntity)
                             }
-                            resolve(returnedAvatarEntity)
                         }
-                    }
-                )
+                    )
+                }));
             }
         )
     }
@@ -205,8 +206,6 @@ class AvatarFactoryMySQL implements AvatarEntityFactory{
     }
 
     install(params : AvatarEntityFactoryInstallInfo) : Promise<void> {
-        
-        //SHA1
         let tableCommand = `CREATE TABLE avatars 
                             (
                                 'data_type' TINYINT NOT NULL,
