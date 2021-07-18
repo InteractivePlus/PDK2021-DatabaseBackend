@@ -1,6 +1,5 @@
 import {Connection} from 'mysql2';
 import {MaskIDEntityFactory, MaskIDCreateEntity} from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/MaskID/MaskIDEntityFactory";
-import {OAuthTokenFactory} from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/OAuth/Token/OAuthTokenFactory";
 import {MaskIDEntity, MaskUID} from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/MaskID/MaskIDEntity";
 import {generateRandomHexString} from "@interactiveplus/pdk2021-common/dist/Utilities/HEXString";
 import { convertErorToPDKStorageEngineError } from './Utils/MySQLErrorUtil';
@@ -12,7 +11,6 @@ import { BackendOAuthSystemSetting }  from '@interactiveplus/pdk2021-backendcore
 class MaskFactoryMySQL implements MaskIDEntityFactory{
     constructor (
         public mysqlConnection:Connection, 
-        public oAuthAccessTokenFactory: OAuthTokenFactory<any,any>,
         public maskIDLength : number,
         protected oAuthSystemSetting: BackendOAuthSystemSetting
     ) {}
@@ -53,7 +51,7 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
             (resolve, reject) =>{
                 let generatedMaskUID = generateRandomHexString(40);
                 let createStatement = 
-                `INSERT INTO maskIDs
+                `INSERT INTO mask_ids
                 (relatedUID, maskUID, displayName, createTime, settings)
                 VALUES (?, ?, ?, ?, ?)`;
                 this.mysqlConnection.execute(
@@ -87,7 +85,7 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
     getMaskIDEntity(maskUID: MaskUID): Promise<MaskIDEntity | undefined>{
         return new Promise<MaskIDEntity |undefined>(
             (resolve, reject) => {
-                let selectStatement = `SELECT * FROM maskIDs WHERE maskUID = ?`;
+                let selectStatement = `SELECT * FROM mask_ids WHERE maskUID = ?`;
                 this.mysqlConnection.execute(selectStatement, [maskUID], function(err, result, fields){
                     if (err !== null) {
                         reject(err);
@@ -111,7 +109,7 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
         return new Promise<void>(
             (resolve, reject) => {
                 let updateStatement = 
-                ` UPDATE maskIDs SET
+                ` UPDATE mask_ids SET
                 relatedUID = ?, displayName = ?, createTime = ? settings = ?,
                 WHERE maskUID = ?;`;
                 this.mysqlConnection.execute(updateStatement, 
@@ -141,7 +139,7 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
     deleteMaskIDEntity(maskUID: MaskUID): Promise<void>{
         return new Promise<void>(
             (resolve, reject) => {
-                let deleteStatement = `DELETE FROM maskIDs WHERE maskUID = ?;`;
+                let deleteStatement = `DELETE FROM mask_ids WHERE maskUID = ?;`;
                 this.mysqlConnection.execute( deleteStatement, [maskUID], 
                     (err, result, fields) => {
                         if (err !== null) {
@@ -168,7 +166,7 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
     ): Promise<number>{
         return new Promise<number>(
             (resolve, reject) => {
-                let selectStatement = `SELECT count(*) as count FROM maskIDs`;
+                let selectStatement = `SELECT count(*) as count FROM mask_ids`;
                 let allParams : any[] = [];
                 let allWHERESubClause : string[] = [];
                 if(maskUID !== undefined){
@@ -213,7 +211,7 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
     searchMaskIDEntity(maskUID?: MaskUID, displayName?: string, userUID?: UserEntityUID, createTimeMin?: number, createTimeMax?: number, numLimit?: number, startPosition?: number): Promise<SearchResult<MaskIDEntity>>{
         return new Promise<SearchResult<MaskIDEntity>>(
             (resolve, reject) => {
-                let selectStatement = `SELECT * FROM maskIDs`;
+                let selectStatement = `SELECT * FROM mask_ids`;
                 let allParams : any[] = [];
                 let allWHERESubClause : string[] = [];
                 if(maskUID !== undefined){
@@ -269,7 +267,7 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
     clearMaskIDEntity(maskUID?: MaskUID, displayName?: string, userUID?: UserEntityUID, createTimeMin?: number, createTimeMax?: number, numLimit?: number, startPosition?: number): Promise<void>{
         return new Promise<void>(
             (resolve, reject) => {
-                let selectStatement = `DELETE FROM maskIDs`;
+                let selectStatement = `DELETE FROM mask_ids`;
                 let allParams : any[] = [];
                 let allWHERESubClause : string[] = [];
                 if(maskUID !== undefined){
@@ -324,7 +322,7 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
     }
 
     install() : Promise<void>{
-        let createCommand = `CREATE TABLE maskIDs 
+        let createCommand = `CREATE TABLE mask_ids 
                             (
                                 'relatedUID' VARCAHR(100),
                                 'maskUID' CHAR(${this.maskIDLength}),
@@ -348,7 +346,7 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
     }
 
     uninstall(): Promise<void>{
-        let createCommand = `DROP TABLE maskIDs`;
+        let createCommand = `DROP TABLE mask_ids`;
         return new Promise((resolve, reject) =>{
             this.mysqlConnection.query(
                 createCommand,
@@ -364,7 +362,7 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
     }
 
     clearData(): Promise<void>{
-        let createCommand = `TRUNCATE TABLE maskIDs `;
+        let createCommand = `TRUNCATE TABLE mask_ids `;
         return new Promise((resolve, reject) =>{
             this.mysqlConnection.query(
                 createCommand,

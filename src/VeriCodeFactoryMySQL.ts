@@ -1,68 +1,156 @@
 import mysql, {Connection} from 'mysql2';
-import {VerificationCodeEntityFactory, VerificationCodeCreateEntity} from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/Communication/VerificationCode/VerificationCodeEntityFactory";
+import {VerificationCodeEntityFactory, VerificationCodeCreateEntity, VerificationCodeEntityFactoryInstallInfo} from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/Communication/VerificationCode/VerificationCodeEntityFactory";
 import {VerificationCodeEntity} from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/Communication/VerificationCode/VerificationCodeEntity"
 import { BackendCommunicationSystemSetting } from '@interactiveplus/pdk2021-backendcore/dist/AbstractDataTypes/SystemSetting/BackendCommunicationSystemSetting';
+import { CommunicationSystemSetting } from '../../pdk2021-common/dist/AbstractDataTypes/SystemSetting/CommunicationSystemSetting';
+import { getMySQLTypeForAPPClientID, getMySQLTypeForAPPEntityUID, getMySQLTypeForMaskIDUID, getMySQLTypeForOAuthToken, getMySQLTypeForUserUID } from './Utils/MySQLTypeUtil';
+import { convertErorToPDKStorageEngineError } from './Utils/MySQLErrorUtil';
 
 interface VericodeFactoryMySQLVerifyInfo{
     code: string,
     isShortCode: boolean
 }
 
-class VericodeFactoryMySQL implements VerificationCodeEntityFactory<VericodeFactoryMySQLVerifyInfo>{
-    constructor(public mysqlConnection:Connection, private communicationSystemSetting : BackendCommunicationSystemSetting) {}
+export type {VericodeFactoryMySQLVerifyInfo};
 
-    getCommunicationSystemSetting(): BackendCommunicationSystemSetting{
+class VericodeFactoryMySQL implements VerificationCodeEntityFactory<VericodeFactoryMySQLVerifyInfo>{
+    constructor(public mysqlConnection:Connection, protected communicationSystemSetting : BackendCommunicationSystemSetting, public useScopeMaxLen: number) {}
+    getVerificationCodeMaxLen(): number {
+        throw this.getVerificationCodeExactLen();
+    }
+    getVerificationCodeShortCodeMaxLen(): number {
+        return this.getVerificationCodeShortCodeExactLen();
+    }
+    getVerificationCodeExactLen() : number{
+        return this.communicationSystemSetting.veriCodeEntityFormat.veriCodeEntityIDCharNum === undefined ? 24 : this.communicationSystemSetting.veriCodeEntityFormat.veriCodeEntityIDCharNum;
+    }
+    getVerificationCodeShortCodeExactLen() : number{
+        return this.communicationSystemSetting.veriCodeEntityFormat.veriCodeEntityShortIDCharNum === undefined ? 5 : this.communicationSystemSetting.veriCodeEntityFormat.veriCodeEntityShortIDCharNum;
+    }
+    getCommunicationSystemSetting(): CommunicationSystemSetting {
         return this.communicationSystemSetting;
     }
-
-    createVerificationCode<ParamType>(createInfo: VerificationCodeCreateEntity<ParamType>): Promise<VerificationCodeEntity<ParamType>>{
-        
-    };
-    revokeCreatedVerificationCode<ParamType>(createdVeriCodeEntity: VerificationCodeEntity<ParamType>): Promise<void>;
-    verifyVerificationCode(verifyInfo: VericodeFactoryMySQLVerifyInfo): boolean;
-    verifyAndUseVerificationCode(verifyInfo: VericodeFactoryMySQLVerifyInfo): boolean;
     
-    checkVerifyInfoValid(verifyInfo: any): VericodeFactoryMySQLVerifyInfo{
-        
+    createVerificationCode<ParamType>(createInfo: VerificationCodeCreateEntity<ParamType>): Promise<VerificationCodeEntity<ParamType>> {
+        throw new Error('Method not implemented.');
     }
-    // getVerificationCode?(veriCodeID: VeriCodeEntityID): VerificationCodeEntity<unknown> | undefined;
-    // updateVerificationCode?<ParamType>(veriCodeID: VeriCodeEntityID, veriCode: VerificationCodeEntity<ParamType>, oldVeriCode?: VerificationCodeEntity<ParamType>): void;
-    // deleteVerificationCode?(veriCodeID: VeriCodeEntityID): void;
-    // checkVerificationCodeExist?(veriCodeID: VeriCodeEntityID): boolean;
-    // getVerificationCodeCont?(veriCodeID?: VeriCodeEntityID, isShortID?: boolean, relatedUser?: UserEntityUID, relatedAPP?: APPUID, relatedMaskID?: MaskUID, relatedAPPClientID?: APPClientID, relatedAPPOAuthToken?: OAuthAccessToken, triggerClientIP?: string, issueUTCTimeMin?: number, issueUTCTimeMax?: number, expireUTCTimeMin?: number, expireUTCTimeMax?: number, useScope?: string | number, used?: boolean, sentMethod?: CommunicationMethodWithNone): number;
-    // searchVerificationCode?(veriCodeID?: VeriCodeEntityID, isShortID?: boolean, relatedUser?: UserEntityUID, relatedAPP?: APPUID, relatedMaskID?: MaskUID, relatedAPPClientID?: APPClientID, relatedAPPOAuthToken?: OAuthAccessToken, triggerClientIP?: string, issueUTCTimeMin?: number, issueUTCTimeMax?: number, expireUTCTimeMin?: number, expireUTCTimeMax?: number, useScope?: string | number, used?: boolean, sentMethod?: CommunicationMethodWithNone, numLimit?: number, startPosition?: number): SearchResult<VerificationCodeEntity<unknown>>;
-    // clearVerificationCode?(veriCodeID?: VeriCodeEntityID, isShortID?: boolean, relatedUser?: UserEntityUID, relatedAPP?: APPUID, relatedMaskID?: MaskUID, relatedAPPClientID?: APPClientID, relatedAPPOAuthToken?: OAuthAccessToken, triggerClientIP?: string, issueUTCTimeMin?: number, issueUTCTimeMax?: number, expireUTCTimeMin?: number, expireUTCTimeMax?: number, useScope?: string | number, used?: boolean, sentMethod?: CommunicationMethodWithNone, numLimit?: number, startPosition?: number): SearchResult<VerificationCodeEntity<unknown>>;
+    revokeCreatedVerificationCode<ParamType>(createdVeriCodeEntity: VerificationCodeEntity<ParamType>): Promise<void> {
+        throw new Error('Method not implemented.');
+    }
+    verifyVerificationCode(verifyInfo: VericodeFactoryMySQLVerifyInfo): Promise<boolean> {
+        throw new Error('Method not implemented.');
+    }
+    verifyAndUseVerificationCode(verifyInfo: VericodeFactoryMySQLVerifyInfo): Promise<boolean> {
+        throw new Error('Method not implemented.');
+    }
+    checkVerifyInfoValid(verifyInfo: any): VericodeFactoryMySQLVerifyInfo {
+        throw new Error('Method not implemented.');
+    }
+    
+    install(params : VerificationCodeEntityFactoryInstallInfo) : Promise<void> {
 
-    install() : Promise<void> {
         //SHA1
-        let tableCommand = `CREATE TABLE verifyCode 
-                            (   
-                                'veriCodeID' VARCHAR(100),
-                                'isShortID' TINYINT(1) NOT NULL,
-                                'relatedUser' VARCHAR(100),
-                                'relatedAPP' VARCHAR(100),
-                                'relatedMaskID' VARCHAR(100),
-                                'relatedAPPClientID' VARCHAR(100),
-                                'relatedOAuthToken' VARCHAR(100),
-                                'param' JSON,
-                                'triggerClientIP' VARCHAR(45),
-                                'issueUTCTime' INT UNSINGED,
-                                'expireUTCTime' INT UNSINGED,
-                                'useScope' VARCHAR(100),
-                                'used' TINYINT(1) NOT NULL,
-                                'sentMethod' TINYINT NOT NULL,
-                                PRIMATY KEY (veriCodeID)
-                            );`;
+        let createLongCodeTable = 
+        `CREATE TABLE vericode_long_codes 
+        (
+            'veriCodeID' VARCHAR(${this.getVerificationCodeExactLen()}) NOT NULL,
+            'relatedUser' ${getMySQLTypeForUserUID(params.userEntityFactory)} NOT NULL,
+            'relatedAPP' ${getMySQLTypeForAPPEntityUID(params.appEntityFactory)} NOT NULL,
+            'relatedMaskID' ${getMySQLTypeForMaskIDUID(params.maskIDEntityFactory)} VARCHAR(100),
+            'relatedAPPClientID' ${getMySQLTypeForAPPClientID(params.appEntityFactory)},
+            'relatedOAuthToken' ${getMySQLTypeForOAuthToken(params.oAuthTokenEntityFactory)},
+            'param' JSON,
+            'triggerClientIP' VARCHAR(45),
+            'issueUTCTime' INT UNSINGED,
+            'expireUTCTime' INT UNSINGED,
+            'useScope' VARCHAR(${this.useScopeMaxLen}),
+            'used' TINYINT(1) NOT NULL,
+            'sentMethod' TINYINT NOT NULL,
+            PRIMATY KEY (veriCodeID)
+        );`;
+        let createShortCodeTable = 
+        `CREATE TABLE vericode_short_codes 
+        (
+            'veriCodeID' VARCHAR(${this.getVerificationCodeShortCodeExactLen()}) NOT NULL,
+            'relatedUser' ${getMySQLTypeForUserUID(params.userEntityFactory)} NOT NULL,
+            'relatedAPP' ${getMySQLTypeForAPPEntityUID(params.appEntityFactory)} NOT NULL,
+            'relatedMaskID' ${getMySQLTypeForMaskIDUID(params.maskIDEntityFactory)} VARCHAR(100),
+            'relatedAPPClientID' ${getMySQLTypeForAPPClientID(params.appEntityFactory)},
+            'relatedOAuthToken' ${getMySQLTypeForOAuthToken(params.oAuthTokenEntityFactory)},
+            'param' JSON,
+            'triggerClientIP' VARCHAR(45),
+            'issueUTCTime' INT UNSINGED,
+            'expireUTCTime' INT UNSINGED,
+            'useScope' VARCHAR(${this.useScopeMaxLen}),
+            'used' TINYINT(1) NOT NULL,
+            'sentMethod' TINYINT NOT NULL,
+            PRIMATY KEY (veriCodeID)
+        );`;
         return new Promise((resolve, reject) => {
             this.mysqlConnection.query(
-            tableCommand, 
-            function(err, results, fields) {
+            createLongCodeTable, 
+            (err, results, fields) => {
                 if(err !== null){
-                    reject(err);
-                }else{
-                    resolve(undefined);
+                    reject(convertErorToPDKStorageEngineError(err));
                 }
+                this.mysqlConnection.query(
+                    createShortCodeTable,
+                    (err, results, fields) => {
+                        if(err !== null){
+                            reject(convertErorToPDKStorageEngineError(err));
+                        }
+                        resolve();
+                    }
+                )
+            })
+        });
+    }
+    uninstall() : Promise<void>{
+        
+        let delLongTable = 'DROP TABLE vericode_long_codes';
+        let delShortTable = 'DROP TABLE vericode_short_codes';
+        return new Promise((resolve, reject) => {
+            this.mysqlConnection.query(
+            delLongTable, 
+            (err, results, fields) => {
+                if(err !== null){
+                    reject(convertErorToPDKStorageEngineError(err));
+                }
+                this.mysqlConnection.query(
+                    delShortTable,
+                    (err, results, fields) => {
+                        if(err !== null){
+                            reject(convertErorToPDKStorageEngineError(err));
+                        }
+                        resolve();
+                    }
+                )
+            })
+        });
+        
+    }
+    clearData(): Promise<void> {
+        let clsLongTable = 'TRUNCATE TABLE vericode_long_codes';
+        let clsShortTable = 'TRUNCATE TABLE vericode_short_codes';
+        return new Promise((resolve, reject) => {
+            this.mysqlConnection.query(
+            clsLongTable, 
+            (err, results, fields) => {
+                if(err !== null){
+                    reject(convertErorToPDKStorageEngineError(err));
+                }
+                this.mysqlConnection.query(
+                    clsShortTable,
+                    (err, results, fields) => {
+                        if(err !== null){
+                            reject(convertErorToPDKStorageEngineError(err));
+                        }
+                        resolve();
+                    }
+                )
             })
         });
     }
 }
+
+export {VericodeFactoryMySQL};

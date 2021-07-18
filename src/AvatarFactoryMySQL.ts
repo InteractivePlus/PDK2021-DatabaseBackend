@@ -5,7 +5,7 @@ import sha1 from 'simple-sha1';
 import { BackendAvatarSystemSetting } from '@interactiveplus/pdk2021-backendcore/dist/AbstractDataTypes/SystemSetting/BackendAvatarSystemSetting';
 import * as PDKExceptions from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/Error/PDKException';
 import { convertErorToPDKStorageEngineError } from './Utils/MySQLErrorUtil';
-import { getSQLTypeFor } from './Utils/MySQLTypeUtil';
+import { getMySQLTypeForUserUID } from './Utils/MySQLTypeUtil';
 
 
 class AvatarFactoryMySQL implements AvatarEntityFactory{
@@ -205,7 +205,6 @@ class AvatarFactoryMySQL implements AvatarEntityFactory{
     }
 
     install(params : AvatarEntityFactoryInstallInfo) : Promise<void> {
-        let UIDMySQLType = getSQLTypeFor(params.userEntityFactory.isUserUIDNumber(), params.userEntityFactory.getUserUIDMaxLen(), params.userEntityFactory.getUserUIDExactLen !== undefined ? params.userEntityFactory.getUserUIDExactLen() : undefined);
         
         //SHA1
         let tableCommand = `CREATE TABLE avatars 
@@ -214,7 +213,7 @@ class AvatarFactoryMySQL implements AvatarEntityFactory{
                                 'data_content_type' TINYINT,
                                 'data_content' MEDIUMBLOB NOT NULL,
                                 'salt' CHAR(40) NOT NULL,
-                                'uploaded_by' ${UIDMySQLType},
+                                'uploaded_by' ${getMySQLTypeForUserUID(params.userEntityFactory)},
                                 'upload_time' INT UNSINGED,
                                 PRIMARY KEY (salt)
                             );`;
