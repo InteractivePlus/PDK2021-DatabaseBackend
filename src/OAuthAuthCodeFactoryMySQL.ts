@@ -69,7 +69,9 @@ class OAuthAuthCodeFactoryMySQL implements AuthorizationCodeEntityFactory<OAuthA
         used?: boolean,
         scopes?: OAuthScope[],
         codeChallenge?: string
-    ) : Promise<number>;
+    ) : Promise<number>{
+        throw new Error('Method not implemented.');
+    }
     searchAuthorizationCode?(
         authCode?: string,
         authMethod?: OAuthAuthorizationMethod,
@@ -167,3 +169,5 @@ class OAuthAuthCodeFactoryMySQL implements AuthorizationCodeEntityFactory<OAuthA
         })
     }
 }
+
+export {OAuthAuthCodeFactoryMySQL};

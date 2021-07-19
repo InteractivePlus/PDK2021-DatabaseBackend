@@ -1,15 +1,17 @@
-import { MaskIDEntityFactory } from "../../../PDK2021-BackendCore/dist/AbstractFactoryTypes/MaskID/MaskIDEntityFactory";
-import { OAuthTokenFactory } from "../../../PDK2021-BackendCore/dist/AbstractFactoryTypes/OAuth/Token/OAuthTokenFactory";
-import { APPEntityFactory } from "../../../PDK2021-BackendCore/dist/AbstractFactoryTypes/RegisteredAPP/APPEntityFactory";
-import { UserEntityFactory } from "../../../PDK2021-BackendCore/dist/AbstractFactoryTypes/User/UserEntityFactory";
+import { AvatarEntityFactory } from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/Avatar/AvatarEntityFactory";
+import { MaskIDEntityFactory } from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/MaskID/MaskIDEntityFactory";
+import { OAuthTokenFactory } from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/OAuth/Token/OAuthTokenFactory";
+import { APPEntityFactory } from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/RegisteredAPP/APPEntityFactory";
+import { UserEntityFactory } from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/User/UserEntityFactory";
+import { APPGroupEntityFactory } from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/RegisteredAPPGroup/APPGroupEntityFactory";
 
 function getMySQLTypeFor(isNumber : boolean, maxLen : number, exactLen?: number) : string{
     if(isNumber){
         return 'BIGINT';
     }else if(exactLen !== undefined){
-        return 'CHAR(' + exactLen + ')';
+        return 'CHAR(' + exactLen.toString() + ')';
     }else{
-        return 'VARCHAR(' + maxLen + ')';
+        return 'VARCHAR(' + maxLen.toString() + ')';
     }
 }
 
@@ -44,3 +46,15 @@ function getMySQLTypeForOAuthToken(oAuthTokenFactory: OAuthTokenFactory<any,any>
 }
 
 export {getMySQLTypeForOAuthToken};
+
+function getMySQLTypeForAvatarSalt(avatarFactory : AvatarEntityFactory){
+    return 'CHAR(' + avatarFactory.getAvatarSaltLength().toString() + ')';
+}
+
+export {getMySQLTypeForAvatarSalt};
+
+function getMySQLTypeForAPPGroupID(appGroupFactory : APPGroupEntityFactory){
+    return getMySQLTypeFor(false,appGroupFactory.getAPPGroupIDMaxLen(),undefined);
+}
+
+export {getMySQLTypeForAPPGroupID};

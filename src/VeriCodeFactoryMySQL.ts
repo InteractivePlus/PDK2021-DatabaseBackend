@@ -33,6 +33,7 @@ class VericodeFactoryMySQL implements VerificationCodeEntityFactory<VericodeFact
     
     createVerificationCode<ParamType>(createInfo: VerificationCodeCreateEntity<ParamType>): Promise<VerificationCodeEntity<ParamType>> {
         throw new Error('Method not implemented.');
+        //这里需要判定createInfo.isShortID来判断这个VeriCode需要存到长表还是短表
     }
     revokeCreatedVerificationCode<ParamType>(createdVeriCodeEntity: VerificationCodeEntity<ParamType>): Promise<void> {
         throw new Error('Method not implemented.');
