@@ -1,11 +1,11 @@
 import {Connection} from 'mysql2';
 import { OAuthTokenCreateInfo, OAuthTokenFactory, OAuthTokenFactoryInstallInfo } from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/OAuth/Token/OAuthTokenFactory";
-import { MaskUID } from "../../pdk2021-common/dist/AbstractDataTypes/MaskID/MaskIDEntity";
-import { OAuthAccessToken, OAuthRefreshToken, OAuthToken } from "../../pdk2021-common/dist/AbstractDataTypes/OAuth/Token/OAuthToken";
-import { APPClientID, APPUID } from "../../pdk2021-common/dist/AbstractDataTypes/RegisteredAPP/APPEntityFormat";
-import { OAuthSystemSetting } from "../../pdk2021-common/dist/AbstractDataTypes/SystemSetting/OAuthSystemSetting";
-import { UserEntityUID } from "../../pdk2021-common/dist/AbstractDataTypes/User/UserEntity";
-import { SearchResult } from "../../pdk2021-common/dist/InternalDataTypes/SearchResult";
+import { MaskUID } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/MaskID/MaskIDEntity";
+import { OAuthAccessToken, OAuthRefreshToken, OAuthToken } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/OAuth/Token/OAuthToken";
+import { APPClientID, APPUID } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/RegisteredAPP/APPEntityFormat";
+import { OAuthSystemSetting } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/SystemSetting/OAuthSystemSetting";
+import { UserEntityUID } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/User/UserEntity";
+import { SearchResult } from "@interactiveplus/pdk2021-common/dist/InternalDataTypes/SearchResult";
 import { getMySQLTypeFor, getMySQLTypeForAPPClientID, getMySQLTypeForAPPEntityUID, getMySQLTypeForMaskIDUID, getMySQLTypeForOAuthToken, getMySQLTypeForUserUID } from './Utils/MySQLTypeUtil';
 import { convertErorToPDKStorageEngineError } from './Utils/MySQLErrorUtil';
 
@@ -126,13 +126,37 @@ class OAuthTokenFactoryMySQL implements OAuthTokenFactory<OAuthTokenFactoryMySQL
             })
         })
     }
-    uninstall(): Promise<void> {
-        throw new Error("Method not implemented.");
-    }
-    clearData(): Promise<void> {
-        throw new Error("Method not implemented.");
+    uninstall(): Promise<void>{
+        let dropCommand = `DROP TABLE oauth_tokens;`;
+        return new Promise((resolve, reject) =>{
+            this.mysqlConnection.query(
+                dropCommand,
+                function(err, result, fields) {
+                    if (err !== null){
+                        reject(err);
+                    } else {
+                        resolve (undefined);
+                    }
+                }
+            )
+        })
     }
 
+    clearData(): Promise<void>{
+        let clsCommand = `TRUNCATE TABLE oauth_tokens;`;
+        return new Promise((resolve, reject) =>{
+            this.mysqlConnection.query(
+                clsCommand,
+                function(err, result, fields) {
+                    if (err !== null){
+                        reject(err);
+                    } else {
+                        resolve (undefined);
+                    }
+                }
+            )
+        })
+    }
 }
 
 export {OAuthTokenFactoryMySQL};

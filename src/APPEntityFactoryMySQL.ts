@@ -1,11 +1,11 @@
 import {Connection} from 'mysql2';
-import { BackendAPPSystemSetting } from '../../PDK2021-BackendCore/dist/AbstractDataTypes/SystemSetting/BackendAPPSystemSetting';
-import { APPEntityCreateInfo, APPEntityFactory, APPEntityFactoryInstallInfo } from '../../PDK2021-BackendCore/dist/AbstractFactoryTypes/RegisteredAPP/APPEntityFactory';
-import { OAuthAuthorizationMethod } from '../../pdk2021-common/dist/AbstractDataTypes/OAuth/OAuthAuthorizationMethod';
-import { APPEntity } from '../../pdk2021-common/dist/AbstractDataTypes/RegisteredAPP/APPEntity';
-import { APPUID } from '../../pdk2021-common/dist/AbstractDataTypes/RegisteredAPP/APPEntityFormat';
-import { UserEntityUID } from '../../pdk2021-common/dist/AbstractDataTypes/User/UserEntity';
-import { SearchResult } from '../../pdk2021-common/dist/InternalDataTypes/SearchResult';
+import { BackendAPPSystemSetting } from '@interactiveplus/pdk2021-backendcore/dist/AbstractDataTypes/SystemSetting/BackendAPPSystemSetting';
+import { APPEntityCreateInfo, APPEntityFactory, APPEntityFactoryInstallInfo } from '@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/RegisteredAPP/APPEntityFactory';
+import { OAuthAuthorizationMethod } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/OAuth/OAuthAuthorizationMethod';
+import { APPEntity } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/RegisteredAPP/APPEntity';
+import { APPUID } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/RegisteredAPP/APPEntityFormat';
+import { UserEntityUID } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/User/UserEntity';
+import { SearchResult } from '@interactiveplus/pdk2021-common/dist/InternalDataTypes/SearchResult';
 import { convertErorToPDKStorageEngineError } from './Utils/MySQLErrorUtil';
 import { getMySQLTypeForAPPClientID, getMySQLTypeForAPPEntityUID, getMySQLTypeForAPPGroupID, getMySQLTypeForAvatarSalt, getMySQLTypeForUserUID } from './Utils/MySQLTypeUtil';
 
@@ -69,10 +69,10 @@ class APPEntityFactoryMySQL implements APPEntityFactory{
     }
 
     getDisplayNameMaxLen() : number{
-        return this.backendAPPSystemSetting.appEntityFormat.displayNameMaxLen !== undefined ? this.backendAPPSystemSetting.appEntityFormat.displayNameMaxLen : 12;
+        return this.backendAPPSystemSetting.appEntityFormat.displayNameMaxLen !== undefined ? this.backendAPPSystemSetting.appEntityFormat.displayNameMaxLen : 20;
     }
     getDescriptionMaxLen() : number{
-        return this.backendAPPSystemSetting.appEntityFormat.descriptionMaxLen !== undefined ? this.backendAPPSystemSetting.appEntityFormat.descriptionMaxLen : 30;
+        return this.backendAPPSystemSetting.appEntityFormat.descriptionMaxLen !== undefined ? this.backendAPPSystemSetting.appEntityFormat.descriptionMaxLen : 50;
     }
     install(params: APPEntityFactoryInstallInfo): Promise<void> {
         let createTableStatement = 
@@ -153,3 +153,5 @@ class APPEntityFactoryMySQL implements APPEntityFactory{
     }
     
 }
+
+export {APPEntityFactoryMySQL};

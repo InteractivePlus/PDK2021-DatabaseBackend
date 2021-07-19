@@ -346,10 +346,10 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
     }
 
     uninstall(): Promise<void>{
-        let createCommand = `DROP TABLE mask_ids`;
+        let dropCommand = `DROP TABLE mask_ids;`;
         return new Promise((resolve, reject) =>{
             this.mysqlConnection.query(
-                createCommand,
+                dropCommand,
                 function(err, result, fields) {
                     if (err !== null){
                         reject(err);
@@ -362,10 +362,10 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
     }
 
     clearData(): Promise<void>{
-        let createCommand = `TRUNCATE TABLE mask_ids `;
+        let clsCommand = `TRUNCATE TABLE mask_ids;`;
         return new Promise((resolve, reject) =>{
             this.mysqlConnection.query(
-                createCommand,
+                clsCommand,
                 function(err, result, fields) {
                     if (err !== null){
                         reject(err);

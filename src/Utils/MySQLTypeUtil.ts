@@ -4,6 +4,7 @@ import { OAuthTokenFactory } from "@interactiveplus/pdk2021-backendcore/dist/Abs
 import { APPEntityFactory } from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/RegisteredAPP/APPEntityFactory";
 import { UserEntityFactory } from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/User/UserEntityFactory";
 import { APPGroupEntityFactory } from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/RegisteredAPPGroup/APPGroupEntityFactory";
+import { UserGroupFactory } from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/UserGroup/UserGroupFactory";
 
 function getMySQLTypeFor(isNumber : boolean, maxLen : number, exactLen?: number) : string{
     if(isNumber){
@@ -58,3 +59,9 @@ function getMySQLTypeForAPPGroupID(appGroupFactory : APPGroupEntityFactory){
 }
 
 export {getMySQLTypeForAPPGroupID};
+
+function getMySQLTypeForUserGroupID(userGroupFactory : UserGroupFactory){
+    return getMySQLTypeFor(false,userGroupFactory.getUserGroupIDMaxLen(),undefined);
+}
+
+export {getMySQLTypeForUserGroupID};
