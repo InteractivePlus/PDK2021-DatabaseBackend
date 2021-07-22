@@ -133,7 +133,7 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
             (resolve, reject) => {
                 let updateStatement = 
                 `UPDATE mask_ids SET
-                relatedUID = ?, displayName = ?, createTime = ? settings = ?,
+                relatedUID = ?, displayName = ?, createTime = ? settings = ? 
                 WHERE maskUID = ?;`;
                 this.mysqlConnection.execute(updateStatement, 
                     [

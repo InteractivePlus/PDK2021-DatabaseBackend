@@ -62,9 +62,6 @@ class UserTokenFactoryMySQL implements UserTokenFactory<UserTokenFactoryMySQLAcc
     verifyUserAccessToken(verifyInfo: UserTokenFactoryMySQLAccessTokenVerifyInfo): Promise<boolean> {
         throw new Error("Method not implemented.");
     }
-    setUserAccessTokenInvalid(accessToken: UserAccessToken): Promise<void>{
-        throw new Error("Method not implemented.");
-    }
     async checkVerifyAccessTokenInfoValid(verifyInfo: any): Promise<UserTokenFactoryMySQLAccessTokenVerifyInfo> {
         let parsedItem = parseJoiTypeItems<UserTokenFactoryMySQLAccessTokenVerifyInfo>(verifyInfo,UserTokenFactoryMySQLAccessTokenVerifyInfoJoiType);
         if(parsedItem === undefined){
@@ -73,10 +70,35 @@ class UserTokenFactoryMySQL implements UserTokenFactory<UserTokenFactoryMySQLAcc
         return parsedItem;
     }
     verifyUserRefreshToken(verifyInfo: UserTokenFactoryMySQLRefreshTokenVerifyInfo): Promise<boolean> {
-        throw new Error("Method not implemented.");
+        let selectStatement = "SELECT count(*) as count FROM user_tokens WHERE refresh_token = ? AND uid = ? AND valid = 1;"
+        return new Promise<boolean>((resolve,reject) => {
+            this.mysqlConnection.execute(selectStatement,[verifyInfo.user_refresh_token, verifyInfo.uid],(err, result, fields)=>{
+                if(err !== null){
+                    reject(convertErorToPDKStorageEngineError(err));
+                }else if(!('length' in result) || !('count' in result[0])){
+                    reject(new PDKUnknownInnerError("Unexpected data type received while fetching data from UserToken System"));
+                }else{
+                    resolve(result[0].count >= 1);
+                }
+            })
+        })
     }
     verifyAndUseUserRefreshToken(verifyInfo: UserTokenFactoryMySQLRefreshTokenVerifyInfo): Promise<boolean> {
-        throw new Error("Method not implemented.");
+        let updateStatement = 
+        `UPDATE user_tokens SET 
+        SET valid = 0 
+        WHERE refresh_token = ? AND uid = ? AND valid = 1;`;
+        return new Promise<boolean>((resolve,reject) => {
+            this.mysqlConnection.execute(updateStatement,[verifyInfo.user_refresh_token, verifyInfo.uid],(err, result, fields)=>{
+                if(err !== null){
+                    reject(convertErorToPDKStorageEngineError(err));
+                }else if(!('affectedRows' in result)){
+                    reject(new PDKUnknownInnerError("Unexpected data type received while fetching data from UserToken System"));
+                }else{
+                    resolve(result.affectedRows >= 1);
+                }
+            })
+        })
     }
     async checkVerifyRefreshTokenInfoValid(verifyInfo: any): Promise<UserTokenFactoryMySQLRefreshTokenVerifyInfo> {
         let parsedItem = parseJoiTypeItems<UserTokenFactoryMySQLRefreshTokenVerifyInfo>(verifyInfo,UserTokenFactoryMySQLRefreshTokenVerifyInfoJoiType);
@@ -108,7 +130,7 @@ class UserTokenFactoryMySQL implements UserTokenFactory<UserTokenFactoryMySQLAcc
             refresh_token CHAR(${this.getRefreshTokenExactLen()}) NOT NULL,
             issue_time INT UNSIGNED NOT NULL,
             refresh_expire_time INT UNSIGNED NOT NULL,
-            valid_state TINYINT(1) NOT NULL,
+            valid TINYINT(1) NOT NULL,
             issue_ip VARCHAR(45), 
             PRIMARY KEY (refresh_token)
         );`
