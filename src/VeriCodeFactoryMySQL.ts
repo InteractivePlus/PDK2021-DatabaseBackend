@@ -8,7 +8,6 @@ import { convertErorToPDKStorageEngineError } from './Utils/MySQLErrorUtil';
 import {generateRandomHexString} from "@interactiveplus/pdk2021-common/dist/Utilities/HEXString";
 import {  PDKItemNotFoundError } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/Error/PDKException';
 
-
 interface VericodeFactoryMySQLVerifyInfo{
     code: string,
     isShortCode: boolean
@@ -42,7 +41,7 @@ class VericodeFactoryMySQL implements VerificationCodeEntityFactory<VericodeFact
     createVerificationCode<ParamType>(createInfo: VerificationCodeCreateEntity<ParamType>): Promise<VerificationCodeEntity<ParamType>> {
         return new Promise<VerificationCodeEntity<ParamType>>(
             (resolve, reject)=>{
-                let generatedVeriCodeId = generateRandomHexString(40);
+                let generatedVeriCodeId = createInfo.isShortID ? generateRandomHexString(this.getVerificationCodeShortCodeExactLen()) : generateRandomHexString(this.getVerificationCodeExactLen());
                 let createStatement = `INSERT INTO `;
 
                 if (createInfo.isShortID) {
@@ -52,7 +51,8 @@ class VericodeFactoryMySQL implements VerificationCodeEntityFactory<VericodeFact
                 }
 
                 createStatement += 
-                `(veriCodeID, 
+                `(
+                    veriCodeID, 
                     isShortID,
                     relatedUser, 
                     relatedAPP, 
@@ -60,12 +60,30 @@ class VericodeFactoryMySQL implements VerificationCodeEntityFactory<VericodeFact
                     relatedAPPClientID,
                     relatedAuthToken, 
                     param, 
-                    truggerClientIP, 
+                    triggerClientIP, 
                     issueUTCTime, 
                     expireUTCTime
                     useScope, 
                     used, 
-                    sentMethod)`;
+                    sentMethod
+                ) VALUES (
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?
+                )`;
+
+
 
                 this.mysqlConnection.execute(
                     createStatement,
@@ -159,7 +177,7 @@ class VericodeFactoryMySQL implements VerificationCodeEntityFactory<VericodeFact
         let createLongCodeTable = 
         `CREATE TABLE vericode_long_codes 
         (
-            'veriCodeID' VARCHAR(${this.getVerificationCodeExactLen()}) NOT NULL,
+            'veriCodeID' CHAR(${this.getVerificationCodeExactLen()}) NOT NULL,
             'isShortID' TINYINT(0) NOT NULL,
             'relatedUser' ${getMySQLTypeForUserUID(params.userEntityFactory)} NOT NULL,
             'relatedAPP' ${getMySQLTypeForAPPEntityUID(params.appEntityFactory)} NOT NULL,
@@ -178,7 +196,7 @@ class VericodeFactoryMySQL implements VerificationCodeEntityFactory<VericodeFact
         let createShortCodeTable = 
         `CREATE TABLE vericode_short_codes 
         (
-            'veriCodeID' VARCHAR(${this.getVerificationCodeShortCodeExactLen()}) NOT NULL,
+            'veriCodeID' CHAR(${this.getVerificationCodeShortCodeExactLen()}) NOT NULL,
             'isShortID' TINYINT(1) NOT NULL
             'relatedUser' ${getMySQLTypeForUserUID(params.userEntityFactory)} NOT NULL,
             'relatedAPP' ${getMySQLTypeForAPPEntityUID(params.appEntityFactory)} NOT NULL,
