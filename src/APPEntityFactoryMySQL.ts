@@ -51,6 +51,12 @@ class APPEntityFactoryMySQL implements APPEntityFactory{
     getAPPEntityByClientID(clientID: string): Promise<APPEntity | undefined> {
         throw new Error('Method not implemented.');
     }
+    checkAPPUIDExist(appuid: APPUID): Promise<boolean> {
+        throw new Error('Method not implemented.');
+    }
+    checkAPPClientIDExist(appClientID: string): Promise<boolean> {
+        throw new Error('Method not implemented.');
+    }
     updateAPPEntity(appuid: APPUID, appEntity: APPEntity, oldAPPEntity?: APPEntity): Promise<void> {
         //Leave this method unimplemented, I will implement this.
         throw new Error('Method not implemented.');

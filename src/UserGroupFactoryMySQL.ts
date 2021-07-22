@@ -30,6 +30,9 @@ class UserGroupFactoryMySQL implements UserGroupFactory{
     getUserGroup(groupId: string): Promise<UserGroup | undefined> {
         throw new Error("Method not implemented.");
     }
+    checkUserGroupIDExist(groupId: string): Promise<boolean> {
+        throw new Error("Method not implemented.");
+    }
     updateUserGroup(groupId: string, groupEntity: UserGroup, oldGroupEntity?: UserGroup): Promise<void> {
         throw new Error("Method not implemented.");
     }

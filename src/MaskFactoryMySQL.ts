@@ -85,7 +85,7 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
     getMaskIDEntity(maskUID: MaskUID): Promise<MaskIDEntity | undefined>{
         return new Promise<MaskIDEntity |undefined>(
             (resolve, reject) => {
-                let selectStatement = `SELECT * FROM mask_ids WHERE maskUID = ?`;
+                let selectStatement = `SELECT * FROM mask_ids WHERE maskUID = ? LIMIT 1`;
                 this.mysqlConnection.execute(selectStatement, [maskUID], function(err, result, fields){
                     if (err !== null) {
                         reject(err);
@@ -104,12 +104,35 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
             }
         )
     }
+
+    checkMaskUIDExists(maskUID: MaskUID): Promise<boolean> {
+        return new Promise<boolean>(
+            (resolve, reject) => {
+                let selectStatement = `SELECT count(*) as count FROM mask_ids WHERE maskUID = ?`;
+                this.mysqlConnection.execute(selectStatement, [maskUID], function(err, result, fields){
+                    if (err !== null) {
+                        reject(err);
+                    } else {
+                        if ("length" in result ){
+                            if ( result.length === 0 || !('count' in result[0]) ) {
+                                reject (new PDKUnknownInnerError("Unexepcted datatype received when fetching MYSQL data from MASKID System"));
+                            } else {
+                                resolve(result[0].count >= 1);
+                            }
+                        } else {
+                            reject(new PDKUnknownInnerError("Unexpected datatype received when fetching MYSQL data from MASKID System"))
+                        }
+                    }
+                })
+            }
+        )
+    }
     
     updateMaskIDEntity(maskUID: MaskUID, maskEntity: MaskIDEntity, oldMaskEntity?: MaskIDEntity): Promise<void>{
         return new Promise<void>(
             (resolve, reject) => {
                 let updateStatement = 
-                ` UPDATE mask_ids SET
+                `UPDATE mask_ids SET
                 relatedUID = ?, displayName = ?, createTime = ? settings = ?,
                 WHERE maskUID = ?;`;
                 this.mysqlConnection.execute(updateStatement, 

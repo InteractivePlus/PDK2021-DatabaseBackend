@@ -51,10 +51,10 @@ class OAuthAuthCodeFactoryMySQL implements AuthorizationCodeEntityFactory<OAuthA
         throw new Error('Method not implemented.');
     }
 
-    checkAuthorizationCodeExist?(authCode : string) : Promise<boolean>{
+    checkAuthorizationCodeExist(authCode : string) : Promise<boolean>{
         throw new Error('Method not implemented.');
     }
-    getAuthorizationCodeCount?(
+    getAuthorizationCodeCount(
         authCode?: string,
         authMethod?: OAuthAuthorizationMethod,
         issueTimeGMTMin?: number,
@@ -72,7 +72,7 @@ class OAuthAuthCodeFactoryMySQL implements AuthorizationCodeEntityFactory<OAuthA
     ) : Promise<number>{
         throw new Error('Method not implemented.');
     }
-    searchAuthorizationCode?(
+    searchAuthorizationCode(
         authCode?: string,
         authMethod?: OAuthAuthorizationMethod,
         issueTimeGMTMin?: number,
@@ -92,7 +92,7 @@ class OAuthAuthCodeFactoryMySQL implements AuthorizationCodeEntityFactory<OAuthA
     ) : Promise<SearchResult<AuthorizationCodeEntity>>{
         throw new Error('Method not implemented.');
     }
-    clearAuthorizationCode?(
+    clearAuthorizationCode(
         authCode?: string,
         authMethod?: OAuthAuthorizationMethod,
         issueTimeGMTMin?: number,

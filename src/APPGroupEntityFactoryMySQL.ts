@@ -30,6 +30,9 @@ class APPGroupEntityFactoryMySQL implements APPGroupEntityFactory{
     getAPPGroupEntity(appGroupId: string): Promise<APPGroupEntity | undefined> {
         throw new Error("Method not implemented.");
     }
+    checkAPPGroupIDExist(appGroupID: string): Promise<boolean> {
+        throw new Error("Method not implemented.");
+    }
     updateAPPGroupEntity(appGroupId: string, appGroupEntity: APPGroupEntity, oldAPPGroupEntity?: APPGroupEntity): Promise<void> {
         throw new Error("Method not implemented.");
     }

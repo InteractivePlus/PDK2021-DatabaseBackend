@@ -43,6 +43,21 @@ class UserEntityFactoryMySQL implements UserEntityFactory{
     createUser(createInfo: UserEntityCreateInfo): Promise<UserEntity> {
         throw new Error('Method not implemented.');
     }
+    checkUIDExist(uid: UserEntityUID): Promise<boolean> {
+        throw new Error('Method not implemented.');
+    }
+    checkUsernameExist(username: string): Promise<boolean> {
+        throw new Error('Method not implemented.');
+    }
+    checkEmailExist(email: string): Promise<boolean> {
+        throw new Error('Method not implemented.');
+    }
+    checkPhoneNumExist(phoneNum: PhoneNumber): Promise<boolean> {
+        throw new Error('Method not implemented.');
+    }
+    checkAnyIdentifierExist(username: string, email?: string, phoneNum?: PhoneNumber): Promise<('username' | 'email' | 'phoneNum')[] | undefined> {
+        throw new Error('Method not implemented.');
+    }
     getUser(uid: UserEntityUID): Promise<UserEntity | undefined> {
         throw new Error('Method not implemented.');
     }

@@ -71,6 +71,14 @@ class OAuthTokenFactoryMySQL implements OAuthTokenFactory<OAuthTokenFactoryMySQL
     getOAuthTokenByRefreshToken(refreshToken: OAuthRefreshToken): Promise<OAuthToken | undefined>{
         throw new Error("Method not implemented.");
     }
+
+    checkOAuthTokenExist(accessToken: OAuthAccessToken): Promise<boolean>{
+        throw new Error("Method not implemented.");
+    }
+    checkOAuthRefreshTokenExist(refreshToken: OAuthRefreshToken): Promise<boolean>{
+        throw new Error("Method not implemented.");
+    }
+    
     
     updateOAuthToken(accessToken: OAuthAccessToken, oAuthToken: OAuthToken, oldOAuthToken?: OAuthToken): Promise<void>{
         throw new Error("Method not implemented.");
