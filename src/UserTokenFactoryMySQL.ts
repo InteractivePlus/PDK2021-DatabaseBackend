@@ -5,14 +5,15 @@ import { UserAccessToken, UserRefreshToken, UserToken } from "../../pdk2021-comm
 import { getMySQLTypeForUserUID } from "./Utils/MySQLTypeUtil";
 import { convertErorToPDKStorageEngineError } from "./Utils/MySQLErrorUtil";
 import { UserEntityUID, UserEntityUIDJoiType } from "../../pdk2021-common/dist/AbstractDataTypes/User/UserEntity";
-import { PDKRequestParamFormatError, PDKUnknownInnerError } from "../../pdk2021-common/dist/AbstractDataTypes/Error/PDKException";
+import { PDKItemExpiredOrUsedError, PDKRequestParamFormatError, PDKUnknownInnerError } from "../../pdk2021-common/dist/AbstractDataTypes/Error/PDKException";
 import { parseJoiTypeItems } from '@interactiveplus/pdk2021-common/dist/Utilities/JoiCheckFunctions';
 import Joi from "joi";
-import rs from 'jsrsasign';
+import jwt, { JwtPayload } from 'jsonwebtoken';
+import { generateRandomHexString } from "../../pdk2021-common/dist/Utilities/HEXString";
 
 
 interface UserTokenFactoryMySQLAccessTokenVerifyInfo{
-    user_token: UserAccessToken,
+    user_token: string,
     uid: UserEntityUID
 }
 
@@ -37,8 +38,19 @@ const UserTokenFactoryMySQLRefreshTokenVerifyInfoJoiType = Joi.object({
 export type {UserTokenFactoryMySQLRefreshTokenVerifyInfo};
 export {UserTokenFactoryMySQLRefreshTokenVerifyInfoJoiType};
 
+interface UserTokenPayload{
+    userId: UserEntityUID,
+    exp: number,
+    issueTime: number,
+    refreshedTime?: number,
+    issueRemoteAddr?: string,
+    renewRemoteAddr?: string
+}
+
+export type {UserTokenPayload};
+
 class UserTokenFactoryMySQL implements UserTokenFactory<UserTokenFactoryMySQLAccessTokenVerifyInfo, UserTokenFactoryMySQLRefreshTokenVerifyInfo>{
-    constructor(public mysqlConnection: Connection, protected backendUserSystemSetting : BackendUserSystemSetting, public publicKey : rs.RSAKey, public privateKey : rs.RSAKey){
+    constructor(public mysqlConnection: Connection, protected backendUserSystemSetting : BackendUserSystemSetting, public publicKey : string, public privateKey : string, public signAlgorithm : 'RS256' | 'RS384' | 'RS512'){
         
     }
     getAccessTokenExactLen(): number{
@@ -57,10 +69,109 @@ class UserTokenFactoryMySQL implements UserTokenFactory<UserTokenFactoryMySQLAcc
         return this.backendUserSystemSetting;
     }
     createUserToken(createInfo: UserTokenCreateInfo): Promise<UserToken> {
-        throw new Error("Method not implemented.");
+        
+        const reRollRefreshTokenFunc = async (maxCallStack?: number) : Promise<string> => {
+            let generatedRefreshToken = generateRandomHexString(this.getRefreshTokenExactLen());
+            let loopTime = 0;
+            let thisTimeExist : boolean = true;
+            while(maxCallStack === undefined || loopTime < maxCallStack){
+                thisTimeExist = await this.checkUserRefreshTokenExist(generatedRefreshToken);
+                if(!thisTimeExist){
+                    break;
+                }else{
+                    generatedRefreshToken = generateRandomHexString(this.getRefreshTokenExactLen());
+                }
+                loopTime++;
+            }
+            if(thisTimeExist){
+                throw new PDKUnknownInnerError('Rerolled ' + loopTime.toString() + ' times of user refresh token but none of them can be stored because there already exists same refresh token');
+            }
+            return generatedRefreshToken;
+        }
+
+        return new Promise<UserToken>((resolve, reject)=>{
+            let tokenPayload : UserTokenPayload = {
+                userId: createInfo.userId,
+                issueRemoteAddr: createInfo.issueRemoteAddr,
+                issueTime: createInfo.issueTimeGMT,
+                exp: createInfo.expireTimeGMT,
+                renewRemoteAddr: createInfo.renewRemoteAddr
+            };
+            let signedJWT = !createInfo.valid ? '' : jwt.sign(tokenPayload,this.privateKey,{algorithm: this.signAlgorithm});
+            
+            reRollRefreshTokenFunc(10).then((generatedRefreshToken) => {
+                //Try to put GeneratedRefreshToken into DB
+                let insertStatement = `INSERT INTO user_tokens
+                (
+                    uid,
+                    refresh_token,
+                    issue_time,
+                    refresh_expire_time,
+                    valid,
+                    issue_ip
+                ) VALUES (
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?
+                )`;
+                this.mysqlConnection.execute(
+                    insertStatement,
+                    [
+                        createInfo.userId,
+                        generatedRefreshToken,
+                        createInfo.issueTimeGMT,
+                        createInfo.valid ? 1 : 0,
+                        createInfo.issueRemoteAddr
+                    ],
+                    (err,result,fields)=>{
+                        if(err!==null){
+                            reject(convertErorToPDKStorageEngineError(err));
+                        }else{
+                            resolve({
+                                userId: createInfo.userId,
+                                accessToken: signedJWT,
+                                refreshToken: generatedRefreshToken,
+                                issueTimeGMT: createInfo.issueTimeGMT,
+                                refreshedTimeGMT: createInfo.refreshedTimeGMT,
+                                expireTimeGMT: createInfo.expireTimeGMT,
+                                refreshExpireTimeGMT: createInfo.refreshExpireTimeGMT,
+                                valid: createInfo.valid,
+                                invalidDueToRefresh: createInfo.invalidDueToRefresh,
+                                issueRemoteAddr: createInfo.issueRemoteAddr,
+                                renewRemoteAddr: createInfo.renewRemoteAddr
+                            })
+                        }
+                    }
+                )
+            }).catch((err)=>{
+                reject(err);
+            })
+        })
     }
     verifyUserAccessToken(verifyInfo: UserTokenFactoryMySQLAccessTokenVerifyInfo): Promise<boolean> {
-        throw new Error("Method not implemented.");
+        return new Promise<boolean>((resolve, reject)=>{
+            jwt.verify(verifyInfo.user_token,this.publicKey,{clockTimestamp: Math.round(new Date().getTime() / 1000)},(err,decoded)=>{
+                if(err !== null){
+                    if(!('name' in err)){
+                        reject(new PDKUnknownInnerError('Unexpected err type received when trying to verify JWT Token in User System'));
+                    }
+                    switch(err.name){
+                        case 'TokenExpiredError':
+                            reject(new PDKItemExpiredOrUsedError(['user_access_token']));
+                            break;
+                        default:
+                            resolve(false);
+                            break;
+                    }
+                }else{
+                    //check remote addr or do anything here
+                    resolve((decoded as JwtPayload & UserTokenPayload).userId === verifyInfo.uid);
+                }
+            })
+        });
     }
     async checkVerifyAccessTokenInfoValid(verifyInfo: any): Promise<UserTokenFactoryMySQLAccessTokenVerifyInfo> {
         let parsedItem = parseJoiTypeItems<UserTokenFactoryMySQLAccessTokenVerifyInfo>(verifyInfo,UserTokenFactoryMySQLAccessTokenVerifyInfoJoiType);
