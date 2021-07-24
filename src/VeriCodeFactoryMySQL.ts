@@ -6,7 +6,8 @@ import { CommunicationSystemSetting } from '@interactiveplus/pdk2021-common/dist
 import { getMySQLTypeForAPPClientID, getMySQLTypeForAPPEntityUID, getMySQLTypeForMaskIDUID, getMySQLTypeForOAuthToken, getMySQLTypeForUserUID } from './Utils/MySQLTypeUtil';
 import { convertErorToPDKStorageEngineError } from './Utils/MySQLErrorUtil';
 import {generateRandomHexString} from "@interactiveplus/pdk2021-common/dist/Utilities/HEXString";
-import {  PDKItemNotFoundError } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/Error/PDKException';
+import {  PDKItemNotFoundError, PDKUnknownInnerError } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/Error/PDKException';
+import { resolve } from 'path/posix';
 
 interface VericodeFactoryMySQLVerifyInfo{
     code: string,
@@ -83,8 +84,6 @@ class VericodeFactoryMySQL implements VerificationCodeEntityFactory<VericodeFact
                     ?
                 )`;
 
-
-
                 this.mysqlConnection.execute(
                     createStatement,
                     [
@@ -141,7 +140,6 @@ class VericodeFactoryMySQL implements VerificationCodeEntityFactory<VericodeFact
                 } else {
                     deleteStatement += `vericode_long_codes `
                 }
-                
                 deleteStatement += `WHERE veriCodeID = ?;`;
 
                 this.mysqlConnection.execute( deleteStatement, [createdVeriCodeEntity.veriCodeID], 
@@ -162,15 +160,91 @@ class VericodeFactoryMySQL implements VerificationCodeEntityFactory<VericodeFact
     }
 
     verifyVerificationCode(verifyInfo: VericodeFactoryMySQLVerifyInfo): Promise<boolean> {
-        throw new Error('Method not implemented.');
+        return new Promise<boolean> (
+            (resolve, reject) => {
+                let compareStatement = `SELECT count(*) as count FROM `;
+
+                if (verifyInfo.isShortCode) {
+                    compareStatement += `vericode_short_codes`;
+                } else {
+                    compareStatement += `vericode_long_codes`;
+                }
+
+                compareStatement += `WHERE veriCodeID = ? LIMIT 1`;
+
+                this.mysqlConnection.execute(
+                    compareStatement, 
+                    [verifyInfo.code],
+                    (err, result, fields) => {
+                        if (err !== null) {
+                            reject(convertErorToPDKStorageEngineError(err));
+                        } else {
+                            if ("length" in result ){
+                                if ( result.length === 0 || !('count' in result[0]) ){
+                                    reject (new PDKUnknownInnerError("No verify code matches"));
+                                } else {
+                                    resolve(result[0].count >= 1);
+                                }
+                            } else {
+                                reject(new PDKUnknownInnerError("Unexpected datatype received when fetching MYSQL data from vericodeID System"))
+                            }
+                        }
+                    }
+                )
+            }
+        )
     }
 
     verifyAndUseVerificationCode(verifyInfo: VericodeFactoryMySQLVerifyInfo): Promise<boolean> {
-        throw new Error('Method not implemented.');
+        return new Promise<boolean> (
+            (resolve, reject) => {
+                let updateStatement = `UPDATE`
+
+                if (verifyInfo.isShortCode) {
+                    updateStatement += `vericode_short_codes`;
+                } else {
+                    updateStatement += `vericode_long_codes`;
+                }
+
+                updateStatement += `used = ?, WHERE vericodeID = ?;`;
+
+                this.mysqlConnection.execute(
+                    updateStatement, 
+                    [true, verifyInfo.code],
+                    (err, result, fields) => {
+                        if (err !== null) {
+                            reject(convertErorToPDKStorageEngineError(err));
+                        } else {
+                            if ("affectedRows" in result && result.affectedRows === 0 ) {
+                                reject(new PDKItemNotFoundError<'veriCodeID'>(['veriCodeID']));
+                            } else {
+                                resolve(true)
+                            }
+                        }
+                    }
+                )
+            }
+        )
     }
 
     checkVerifyInfoValid(verifyInfo: any): VericodeFactoryMySQLVerifyInfo {
-        throw new Error('Method not implemented.');
+        let compareStatement = `SELECT used FROM `;
+
+        if (verifyInfo.isShortCode) {
+            compareStatement += `vericode_short_codes`;
+        } else {
+            compareStatement += `vericode_long_codes`;
+        }
+
+        compareStatement += `WHERE veriCodeID = ?`;
+
+        this.mysqlConnection.execute(
+            compareStatement,
+            [verifyInfo.code, true],
+            (err, result, fields) => {
+
+            }
+        )
     }
     
     install(params : VerificationCodeEntityFactoryInstallInfo) : Promise<void> {
