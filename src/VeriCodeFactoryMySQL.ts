@@ -6,9 +6,7 @@ import { CommunicationSystemSetting } from '@interactiveplus/pdk2021-common/dist
 import { getMySQLTypeForAPPClientID, getMySQLTypeForAPPEntityUID, getMySQLTypeForMaskIDUID, getMySQLTypeForOAuthToken, getMySQLTypeForUserUID } from './Utils/MySQLTypeUtil';
 import { convertErorToPDKStorageEngineError } from './Utils/MySQLErrorUtil';
 import {generateRandomHexString} from "@interactiveplus/pdk2021-common/dist/Utilities/HEXString";
-import {  PDKItemNotFoundError, PDKUnknownInnerError } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/Error/PDKException';
-import { resolve } from 'path/posix';
-
+import {  PDKItemNotFoundError, PDKRequestParamFormatError, PDKUnknownInnerError } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/Error/PDKException';
 interface VericodeFactoryMySQLVerifyInfo{
     code: string,
     isShortCode: boolean
@@ -198,7 +196,7 @@ class VericodeFactoryMySQL implements VerificationCodeEntityFactory<VericodeFact
     verifyAndUseVerificationCode(verifyInfo: VericodeFactoryMySQLVerifyInfo): Promise<boolean> {
         return new Promise<boolean> (
             (resolve, reject) => {
-                let updateStatement = `UPDATE`
+                let updateStatement = `UPDATE `
 
                 if (verifyInfo.isShortCode) {
                     updateStatement += `vericode_short_codes`;
@@ -206,19 +204,19 @@ class VericodeFactoryMySQL implements VerificationCodeEntityFactory<VericodeFact
                     updateStatement += `vericode_long_codes`;
                 }
 
-                updateStatement += `used = ?, WHERE vericodeID = ?;`;
+                updateStatement += ` SET used = 1 WHERE vericodeID = ? AND used = 0;`;
 
                 this.mysqlConnection.execute(
                     updateStatement, 
-                    [true, verifyInfo.code],
+                    [verifyInfo.code],
                     (err, result, fields) => {
                         if (err !== null) {
                             reject(convertErorToPDKStorageEngineError(err));
                         } else {
-                            if ("affectedRows" in result && result.affectedRows === 0 ) {
-                                reject(new PDKItemNotFoundError<'veriCodeID'>(['veriCodeID']));
+                            if ("affectedRows" in result) {
+                                resolve(result.affectedRows >= 1);
                             } else {
-                                resolve(true)
+                                reject(new PDKUnknownInnerError('Unexpected data type received when trying to verify and use verification code in VeriCode System'));
                             }
                         }
                     }
@@ -228,23 +226,15 @@ class VericodeFactoryMySQL implements VerificationCodeEntityFactory<VericodeFact
     }
 
     checkVerifyInfoValid(verifyInfo: any): VericodeFactoryMySQLVerifyInfo {
-        let compareStatement = `SELECT used FROM `;
-
-        if (verifyInfo.isShortCode) {
-            compareStatement += `vericode_short_codes`;
-        } else {
-            compareStatement += `vericode_long_codes`;
+        //check integrity of verifyInfo, we don't want client to pass trash data to us!
+        if(typeof(verifyInfo) !== 'object' || !('code' in verifyInfo) || typeof(verifyInfo['code']) !== 'string' || !('isShortCode' in verifyInfo) || typeof(verifyInfo['isShortCode']) !== 'string'){
+            throw new PDKRequestParamFormatError(['verification_code']);
+        }else{
+            return {
+                code: verifyInfo.code,
+                isShortCode: verifyInfo.isShortCode
+            };
         }
-
-        compareStatement += `WHERE veriCodeID = ?`;
-
-        this.mysqlConnection.execute(
-            compareStatement,
-            [verifyInfo.code, true],
-            (err, result, fields) => {
-
-            }
-        )
     }
     
     install(params : VerificationCodeEntityFactoryInstallInfo) : Promise<void> {

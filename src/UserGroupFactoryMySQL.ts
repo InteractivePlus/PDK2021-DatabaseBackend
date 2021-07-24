@@ -1,8 +1,8 @@
 import { Connection } from "mysql2";
-import { BackendUserSystemSetting } from "../../PDK2021-BackendCore/dist/AbstractDataTypes/SystemSetting/BackendUserSystemSetting";
-import { UserGroupFactory, UserGroupFactoryInstallInfo } from "../../PDK2021-BackendCore/dist/AbstractFactoryTypes/UserGroup/UserGroupFactory";
-import { UserGroup } from "../../pdk2021-common/dist/AbstractDataTypes/UserGroup/UserGroup";
-import { SearchResult } from "../../pdk2021-common/dist/InternalDataTypes/SearchResult";
+import { BackendUserSystemSetting } from "@interactiveplus/pdk2021-backendcore/dist/AbstractDataTypes/SystemSetting/BackendUserSystemSetting";
+import { UserGroupFactory, UserGroupFactoryInstallInfo } from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/UserGroup/UserGroupFactory";
+import { UserGroup } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/UserGroup/UserGroup";
+import { SearchResult } from "@interactiveplus/pdk2021-common/dist/InternalDataTypes/SearchResult";
 import { convertErorToPDKStorageEngineError } from "./Utils/MySQLErrorUtil";
 import { getMySQLTypeForAvatarSalt, getMySQLTypeForUserGroupID } from "./Utils/MySQLTypeUtil";
 

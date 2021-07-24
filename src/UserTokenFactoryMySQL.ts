@@ -1,15 +1,15 @@
 import { Connection } from "mysql2";
 import { UserTokenCreateInfo, UserTokenFactory, UserTokenFactoryInstallInfo } from '@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/User/UserTokenFactory';
-import { BackendUserSystemSetting } from "../../PDK2021-BackendCore/dist/AbstractDataTypes/SystemSetting/BackendUserSystemSetting";
-import { UserAccessToken, UserRefreshToken, UserToken } from "../../pdk2021-common/dist/AbstractDataTypes/User/UserToken";
+import { BackendUserSystemSetting } from "@interactiveplus/pdk2021-backendcore/dist/AbstractDataTypes/SystemSetting/BackendUserSystemSetting";
+import { UserRefreshToken, UserToken } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/User/UserToken";
 import { getMySQLTypeForUserUID } from "./Utils/MySQLTypeUtil";
 import { convertErorToPDKStorageEngineError } from "./Utils/MySQLErrorUtil";
-import { UserEntityUID, UserEntityUIDJoiType } from "../../pdk2021-common/dist/AbstractDataTypes/User/UserEntity";
-import { PDKItemExpiredOrUsedError, PDKRequestParamFormatError, PDKUnknownInnerError } from "../../pdk2021-common/dist/AbstractDataTypes/Error/PDKException";
+import { UserEntityUID, UserEntityUIDJoiType } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/User/UserEntity";
+import { PDKItemExpiredOrUsedError, PDKRequestParamFormatError, PDKUnknownInnerError } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/Error/PDKException";
 import { parseJoiTypeItems } from '@interactiveplus/pdk2021-common/dist/Utilities/JoiCheckFunctions';
 import Joi from "joi";
 import jwt, { JwtPayload } from 'jsonwebtoken';
-import { generateRandomHexString } from "../../pdk2021-common/dist/Utilities/HEXString";
+import { generateRandomHexString } from "@interactiveplus/pdk2021-common/dist/Utilities/HEXString";
 
 
 interface UserTokenFactoryMySQLAccessTokenVerifyInfo{
