@@ -17,10 +17,11 @@ interface OAuthAuthCodeFactoryMySQLVerifyInfo{
 
 export type {OAuthAuthCodeFactoryMySQLVerifyInfo};
 
-class OAuthAuthCodeFactoryMySQL implements AuthorizationCodeEntityFactory<OAuthAuthCodeFactoryMySQLVerifyInfo>{
+class OAuthAuthCodeFactoryMySQL implements AuthorizationCodeEntityFactory{
     constructor(public mysqlConnection : Connection, protected oAuthSystemSetting : OAuthSystemSetting){
 
     }
+    
     getOAuthCodeMaxLength(): number {
         return this.getOAuthCodeExactLength();
     }
@@ -35,10 +36,10 @@ class OAuthAuthCodeFactoryMySQL implements AuthorizationCodeEntityFactory<OAuthA
     createAuthCode(authCodeInfo: AuthorizationCodeCreateEntity): Promise<AuthorizationCodeEntity> {
         throw new Error('Method not implemented.');
     }
-    verifyAuthCode(verifyInfo: OAuthAuthCodeFactoryMySQLVerifyInfo): Promise<boolean> {
+    verifyAuthCode(authCode: string, authMethod?: OAuthAuthorizationMethod, clientID?: string, maskUID?: MaskUID, codeVerifier?: string): Promise<boolean> {
         throw new Error('Method not implemented.');
     }
-    verifyAndUseAuthCode(verifyInfo: OAuthAuthCodeFactoryMySQLVerifyInfo): Promise<boolean> {
+    verifyAndUseAuthCode(authCode: string, authMethod?: OAuthAuthorizationMethod, clientID?: string, maskUID?: MaskUID, codeVerifier?: string): Promise<boolean> {
         throw new Error('Method not implemented.');
     }
     getAuthorizationCode(authCode : string) : Promise<AuthorizationCodeEntity | undefined>{

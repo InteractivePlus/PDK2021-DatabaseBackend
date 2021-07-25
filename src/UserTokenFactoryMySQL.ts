@@ -1,42 +1,13 @@
 import { Connection } from "mysql2";
 import { UserTokenCreateInfo, UserTokenFactory, UserTokenFactoryInstallInfo } from '@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/User/UserTokenFactory';
 import { BackendUserSystemSetting } from "@interactiveplus/pdk2021-backendcore/dist/AbstractDataTypes/SystemSetting/BackendUserSystemSetting";
-import { UserRefreshToken, UserToken } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/User/UserToken";
+import { UserAccessToken, UserRefreshToken, UserToken } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/User/UserToken";
 import { getMySQLTypeForUserUID } from "./Utils/MySQLTypeUtil";
 import { convertErorToPDKStorageEngineError } from "./Utils/MySQLErrorUtil";
-import { UserEntityUID, UserEntityUIDJoiType } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/User/UserEntity";
-import { PDKItemExpiredOrUsedError, PDKRequestParamFormatError, PDKUnknownInnerError } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/Error/PDKException";
-import { parseJoiTypeItems } from '@interactiveplus/pdk2021-common/dist/Utilities/JoiCheckFunctions';
-import Joi from "joi";
+import { UserEntityUID } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/User/UserEntity";
+import { PDKItemExpiredOrUsedError, PDKUnknownInnerError } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/Error/PDKException";
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import { generateRandomHexString } from "@interactiveplus/pdk2021-common/dist/Utilities/HEXString";
-
-
-interface UserTokenFactoryMySQLAccessTokenVerifyInfo{
-    user_token: string,
-    uid: UserEntityUID
-}
-
-const UserTokenFactoryMySQLAccessTokenVerifyInfoJoiType = Joi.object({
-    user_token: Joi.string().required(),
-    uid: UserEntityUIDJoiType.required()
-});
-
-export type {UserTokenFactoryMySQLAccessTokenVerifyInfo};
-export {UserTokenFactoryMySQLAccessTokenVerifyInfoJoiType};
-
-interface UserTokenFactoryMySQLRefreshTokenVerifyInfo{
-    user_refresh_token: UserRefreshToken,
-    uid: UserEntityUID
-}
-
-const UserTokenFactoryMySQLRefreshTokenVerifyInfoJoiType = Joi.object({
-    user_refresh_token: Joi.string().required(),
-    uid: UserEntityUIDJoiType.required()
-});
-
-export type {UserTokenFactoryMySQLRefreshTokenVerifyInfo};
-export {UserTokenFactoryMySQLRefreshTokenVerifyInfoJoiType};
 
 interface UserTokenPayload{
     userId: UserEntityUID,
@@ -49,7 +20,7 @@ interface UserTokenPayload{
 
 export type {UserTokenPayload};
 
-class UserTokenFactoryMySQL implements UserTokenFactory<UserTokenFactoryMySQLAccessTokenVerifyInfo, UserTokenFactoryMySQLRefreshTokenVerifyInfo>{
+class UserTokenFactoryMySQL implements UserTokenFactory{
     constructor(public mysqlConnection: Connection, protected backendUserSystemSetting : BackendUserSystemSetting, public publicKey : string, public privateKey : string, public signAlgorithm : 'RS256' | 'RS384' | 'RS512'){
         
     }
@@ -69,7 +40,6 @@ class UserTokenFactoryMySQL implements UserTokenFactory<UserTokenFactoryMySQLAcc
         return this.backendUserSystemSetting;
     }
     createUserToken(createInfo: UserTokenCreateInfo): Promise<UserToken> {
-        
         const reRollRefreshTokenFunc = async (maxCallStack?: number) : Promise<string> => {
             let generatedRefreshToken = generateRandomHexString(this.getRefreshTokenExactLen());
             let loopTime = 0;
@@ -151,9 +121,9 @@ class UserTokenFactoryMySQL implements UserTokenFactory<UserTokenFactoryMySQLAcc
             })
         })
     }
-    verifyUserAccessToken(verifyInfo: UserTokenFactoryMySQLAccessTokenVerifyInfo): Promise<boolean> {
+    verifyUserAccessToken(accessToken: UserAccessToken, userId: UserEntityUID): Promise<boolean> {
         return new Promise<boolean>((resolve, reject)=>{
-            jwt.verify(verifyInfo.user_token,this.publicKey,{clockTimestamp: Math.round(new Date().getTime() / 1000)},(err,decoded)=>{
+            jwt.verify(accessToken,this.publicKey,{clockTimestamp: Math.round(new Date().getTime() / 1000)},(err,decoded)=>{
                 if(err !== null){
                     if(!('name' in err)){
                         reject(new PDKUnknownInnerError('Unexpected err type received when trying to verify JWT Token in User System'));
@@ -168,23 +138,16 @@ class UserTokenFactoryMySQL implements UserTokenFactory<UserTokenFactoryMySQLAcc
                     }
                 }else{
                     //check remote addr or do anything here
-                    resolve((decoded as JwtPayload & UserTokenPayload).userId === verifyInfo.uid);
+                    resolve((decoded as JwtPayload & UserTokenPayload).userId === userId);
                 }
             })
         });
     }
-    async checkVerifyAccessTokenInfoValid(verifyInfo: any): Promise<UserTokenFactoryMySQLAccessTokenVerifyInfo> {
-        let parsedItem = parseJoiTypeItems<UserTokenFactoryMySQLAccessTokenVerifyInfo>(verifyInfo,UserTokenFactoryMySQLAccessTokenVerifyInfoJoiType);
-        if(parsedItem === undefined){
-            throw new PDKRequestParamFormatError(['user_access_token']);
-        }
-        return parsedItem;
-    }
-    verifyUserRefreshToken(verifyInfo: UserTokenFactoryMySQLRefreshTokenVerifyInfo): Promise<boolean> {
+    verifyUserRefreshToken(refreshToken: UserRefreshToken, userId: UserEntityUID): Promise<boolean> {
         let currentTimeSecGMT = Math.round(Date.now() / 1000);
         let selectStatement = "SELECT count(*) as count FROM user_tokens WHERE refresh_token = ? AND uid = ? AND valid = 1 AND refresh_expire_time > ?;"
         return new Promise<boolean>((resolve,reject) => {
-            this.mysqlConnection.execute(selectStatement,[verifyInfo.user_refresh_token, verifyInfo.uid, currentTimeSecGMT],(err, result, fields)=>{
+            this.mysqlConnection.execute(selectStatement,[refreshToken, userId, currentTimeSecGMT],(err, result, fields)=>{
                 if(err !== null){
                     reject(convertErorToPDKStorageEngineError(err));
                 }else if(!('length' in result) || !('count' in result[0])){
@@ -195,30 +158,39 @@ class UserTokenFactoryMySQL implements UserTokenFactory<UserTokenFactoryMySQLAcc
             })
         })
     }
-    verifyAndUseUserRefreshToken(verifyInfo: UserTokenFactoryMySQLRefreshTokenVerifyInfo): Promise<boolean> {
+    verifyAndUseUserRefreshToken(refreshToken: UserRefreshToken, userId: UserEntityUID): Promise<UserToken | undefined> {
         let currentTimeSecGMT = Math.round(Date.now() / 1000);
         let updateStatement = 
         `UPDATE user_tokens SET 
-        SET valid = 0 
+        valid = 0 
         WHERE refresh_token = ? AND uid = ? AND valid = 1 AND refresh_expire_time > ?;`;
-        return new Promise<boolean>((resolve,reject) => {
-            this.mysqlConnection.execute(updateStatement,[verifyInfo.user_refresh_token, verifyInfo.uid, currentTimeSecGMT],(err, result, fields)=>{
+        return new Promise<UserToken | undefined>((resolve,reject) => {
+            this.mysqlConnection.execute(updateStatement,[refreshToken, userId, currentTimeSecGMT],(err, result, fields)=>{
                 if(err !== null){
                     reject(convertErorToPDKStorageEngineError(err));
                 }else if(!('affectedRows' in result)){
                     reject(new PDKUnknownInnerError("Unexpected data type received while fetching data from UserToken System"));
                 }else{
-                    resolve(result.affectedRows >= 1);
+                    if(result.affectedRows >= 1){
+                        let createUserToken : UserTokenCreateInfo = {
+                            userId: userId,
+                            issueTimeGMT: currentTimeSecGMT,
+                            refreshedTimeGMT: currentTimeSecGMT,
+                            expireTimeGMT: currentTimeSecGMT + this.backendUserSystemSetting.userTokenAvailableDuration.accessToken,
+                            refreshExpireTimeGMT: currentTimeSecGMT + this.backendUserSystemSetting.userTokenAvailableDuration.refreshToken,
+                            valid: true
+                        };
+                        this.createUserToken(createUserToken).then((token)=>{
+                            resolve(token);
+                        }).catch((err)=>{
+                            reject(err);
+                        });
+                    }else{
+                        resolve(undefined);
+                    }
                 }
             })
         })
-    }
-    async checkVerifyRefreshTokenInfoValid(verifyInfo: any): Promise<UserTokenFactoryMySQLRefreshTokenVerifyInfo> {
-        let parsedItem = parseJoiTypeItems<UserTokenFactoryMySQLRefreshTokenVerifyInfo>(verifyInfo,UserTokenFactoryMySQLRefreshTokenVerifyInfoJoiType);
-        if(parsedItem === undefined){
-            throw new PDKRequestParamFormatError(['user_refresh_token']);
-        }
-        return parsedItem;
     }
     checkUserRefreshTokenExist(refreshToken: UserRefreshToken) : Promise<boolean>{
         return new Promise<boolean>((resolve,reject)=>{

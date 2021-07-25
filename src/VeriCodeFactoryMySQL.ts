@@ -1,20 +1,17 @@
 import {Connection} from 'mysql2';
 import {VerificationCodeEntityFactory, VerificationCodeCreateEntity, VerificationCodeEntityFactoryInstallInfo} from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/Communication/VerificationCode/VerificationCodeEntityFactory";
-import {VerificationCodeEntity} from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/Communication/VerificationCode/VerificationCodeEntity"
+import {VeriCodeEntityID, VerificationCodeEntity} from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/Communication/VerificationCode/VerificationCodeEntity"
 import { BackendCommunicationSystemSetting } from '@interactiveplus/pdk2021-backendcore/dist/AbstractDataTypes/SystemSetting/BackendCommunicationSystemSetting';
 import { CommunicationSystemSetting } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/SystemSetting/CommunicationSystemSetting';
 import { getMySQLTypeForAPPClientID, getMySQLTypeForAPPEntityUID, getMySQLTypeForMaskIDUID, getMySQLTypeForOAuthToken, getMySQLTypeForUserUID } from './Utils/MySQLTypeUtil';
 import { convertErorToPDKStorageEngineError } from './Utils/MySQLErrorUtil';
 import {generateRandomHexString} from "@interactiveplus/pdk2021-common/dist/Utilities/HEXString";
-import {  PDKItemNotFoundError, PDKRequestParamFormatError, PDKUnknownInnerError } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/Error/PDKException';
-interface VericodeFactoryMySQLVerifyInfo{
-    code: string,
-    isShortCode: boolean
-}
+import {  PDKItemNotFoundError, PDKUnknownInnerError } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/Error/PDKException';
+import { UserEntityUID } from '../../pdk2021-common/dist/AbstractDataTypes/User/UserEntity';
+import { APPClientID, APPUID } from '../../pdk2021-common/dist/AbstractDataTypes/RegisteredAPP/APPEntityFormat';
+import { MaskUID } from '../../pdk2021-common/dist/AbstractDataTypes/MaskID/MaskIDEntity';
 
-export type {VericodeFactoryMySQLVerifyInfo};
-
-class VericodeFactoryMySQL implements VerificationCodeEntityFactory<VericodeFactoryMySQLVerifyInfo>{
+class VericodeFactoryMySQL implements VerificationCodeEntityFactory{
     constructor(public mysqlConnection:Connection, protected communicationSystemSetting : BackendCommunicationSystemSetting, public useScopeMaxLen: number) {}
     
     getVerificationCodeMaxLen(): number {
@@ -157,22 +154,57 @@ class VericodeFactoryMySQL implements VerificationCodeEntityFactory<VericodeFact
         )
     }
 
-    verifyVerificationCode(verifyInfo: VericodeFactoryMySQLVerifyInfo): Promise<boolean> {
+    verifyVerificationCode(veriCode: VeriCodeEntityID, isShortCode: boolean, uid?: UserEntityUID, appuid?: APPUID, client_id?: APPClientID, mask_id?: MaskUID, useScope?: string | number): Promise<boolean> {
         return new Promise<boolean> (
             (resolve, reject) => {
                 let compareStatement = `SELECT count(*) as count FROM `;
+                let currentTimeGMT = Math.round(Date.now() / 1000);
+                let allParams : any[] = [];
 
-                if (verifyInfo.isShortCode) {
+                if (isShortCode) {
                     compareStatement += `vericode_short_codes`;
                 } else {
                     compareStatement += `vericode_long_codes`;
                 }
 
-                compareStatement += `WHERE veriCodeID = ? LIMIT 1`;
+                compareStatement += ` WHERE veriCodeID = ?`;
+                allParams.push(veriCode);
+
+                if(uid !== undefined){
+                    compareStatement += ' AND relatedUser = ?';
+                    allParams.push(uid);
+                }
+
+                if(appuid !== undefined){
+                    compareStatement += ' AND relatedAPP = ?';
+                    allParams.push(appuid);
+                }
+
+                if(client_id !== undefined){
+                    compareStatement += ' AND relatedAPPClientID = ?';
+                    allParams.push(client_id);
+                }
+
+                if(mask_id !== undefined){
+                    compareStatement += ' AND relatedMaskID = ?';
+                    allParams.push(mask_id);
+                }
+
+                if(useScope !== undefined){
+                    compareStatement += ' AND useScope = ?';
+                    allParams.push(useScope);
+                }
+
+                compareStatement += ' AND expireUTCTime > ?';
+                allParams.push(currentTimeGMT);
+
+                compareStatement += ' AND used = 0';
+
+                compareStatement += ';';
 
                 this.mysqlConnection.execute(
                     compareStatement, 
-                    [verifyInfo.code],
+                    allParams,
                     (err, result, fields) => {
                         if (err !== null) {
                             reject(convertErorToPDKStorageEngineError(err));
@@ -193,22 +225,59 @@ class VericodeFactoryMySQL implements VerificationCodeEntityFactory<VericodeFact
         )
     }
 
-    verifyAndUseVerificationCode(verifyInfo: VericodeFactoryMySQLVerifyInfo): Promise<boolean> {
+    verifyAndUseVerificationCode(veriCode: VeriCodeEntityID, isShortCode: boolean, uid?: UserEntityUID, appuid?: APPUID, client_id?: APPClientID, mask_id?: MaskUID, useScope?: string | number): Promise<boolean> {
         return new Promise<boolean> (
             (resolve, reject) => {
-                let updateStatement = `UPDATE `
-
-                if (verifyInfo.isShortCode) {
+                let updateStatement = `UPDATE `;
+                if (isShortCode) {
                     updateStatement += `vericode_short_codes`;
                 } else {
                     updateStatement += `vericode_long_codes`;
                 }
 
-                updateStatement += ` SET used = 1 WHERE vericodeID = ? AND used = 0;`;
+                updateStatement += ' SET used = 1';
+
+                let currentTimeGMT = Math.round(Date.now() / 1000);
+                let allParams : any[] = [];
+                
+                updateStatement += ` WHERE veriCodeID = ?`;
+                allParams.push(veriCode);
+
+                if(uid !== undefined){
+                    updateStatement += ' AND relatedUser = ?';
+                    allParams.push(uid);
+                }
+
+                if(appuid !== undefined){
+                    updateStatement += ' AND relatedAPP = ?';
+                    allParams.push(appuid);
+                }
+
+                if(client_id !== undefined){
+                    updateStatement += ' AND relatedAPPClientID = ?';
+                    allParams.push(client_id);
+                }
+
+                if(mask_id !== undefined){
+                    updateStatement += ' AND relatedMaskID = ?';
+                    allParams.push(mask_id);
+                }
+
+                if(useScope !== undefined){
+                    updateStatement += ' AND useScope = ?';
+                    allParams.push(useScope);
+                }
+
+                updateStatement += ' AND expireUTCTime > ?';
+                allParams.push(currentTimeGMT);
+
+                updateStatement += ' AND used = 0';
+
+                updateStatement += ';';
 
                 this.mysqlConnection.execute(
                     updateStatement, 
-                    [verifyInfo.code],
+                    allParams,
                     (err, result, fields) => {
                         if (err !== null) {
                             reject(convertErorToPDKStorageEngineError(err));
@@ -223,18 +292,6 @@ class VericodeFactoryMySQL implements VerificationCodeEntityFactory<VericodeFact
                 )
             }
         )
-    }
-
-    checkVerifyInfoValid(verifyInfo: any): VericodeFactoryMySQLVerifyInfo {
-        //check integrity of verifyInfo, we don't want client to pass trash data to us!
-        if(typeof(verifyInfo) !== 'object' || !('code' in verifyInfo) || typeof(verifyInfo['code']) !== 'string' || !('isShortCode' in verifyInfo) || typeof(verifyInfo['isShortCode']) !== 'string'){
-            throw new PDKRequestParamFormatError(['verification_code']);
-        }else{
-            return {
-                code: verifyInfo.code,
-                isShortCode: verifyInfo.isShortCode
-            };
-        }
     }
     
     install(params : VerificationCodeEntityFactoryInstallInfo) : Promise<void> {

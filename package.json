@@ -22,7 +22,6 @@
     "@types/jsonwebtoken": "^8.5.4",
     "@types/jsrsasign": "^8.0.13",
     "@types/node": "^16.3.3",
-    "joi": "^17.4.1",
     "jsonwebtoken": "^8.5.1",
     "mysql2": "^2.2.5",
     "simple-sha1": "^3.1.0"

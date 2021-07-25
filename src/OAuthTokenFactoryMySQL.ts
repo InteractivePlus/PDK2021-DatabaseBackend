@@ -2,39 +2,42 @@ import {Connection} from 'mysql2';
 import { OAuthTokenCreateInfo, OAuthTokenFactory, OAuthTokenFactoryInstallInfo } from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/OAuth/Token/OAuthTokenFactory";
 import { MaskUID } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/MaskID/MaskIDEntity";
 import { OAuthAccessToken, OAuthRefreshToken, OAuthToken } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/OAuth/Token/OAuthToken";
-import { APPClientID, APPUID } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/RegisteredAPP/APPEntityFormat";
+import { APPClientID } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/RegisteredAPP/APPEntityFormat";
 import { OAuthSystemSetting } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/SystemSetting/OAuthSystemSetting";
-import { UserEntityUID } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/User/UserEntity";
-import { SearchResult } from "@interactiveplus/pdk2021-common/dist/InternalDataTypes/SearchResult";
-import { getMySQLTypeFor, getMySQLTypeForAPPClientID, getMySQLTypeForAPPEntityUID, getMySQLTypeForMaskIDUID, getMySQLTypeForOAuthToken, getMySQLTypeForUserUID } from './Utils/MySQLTypeUtil';
+import { getMySQLTypeFor, getMySQLTypeForAPPClientID, getMySQLTypeForMaskIDUID } from './Utils/MySQLTypeUtil';
 import { convertErorToPDKStorageEngineError } from './Utils/MySQLErrorUtil';
+import { PDKItemExpiredOrUsedError, PDKPermissionDeniedError, PDKUnknownInnerError } from '../../pdk2021-common/dist/AbstractDataTypes/Error/PDKException';
+import jwt, { JwtPayload } from 'jsonwebtoken';
+import { OAuthScope } from '../../pdk2021-common/dist/AbstractDataTypes/OAuth/OAuthScope';
 
-interface OAuthTokenFactoryMySQLAccessTokenVerifyInfo{
-    access_token: string
+interface OAuthTokenPayload{
+    maskId: MaskUID,
+    clientId: APPClientID,
+    exp: number,
+    issueTime: number,
+    refreshedTime?: number,
+    userRemoteAddr?: string,
+    scopes: OAuthScope[]
 }
 
-interface OAuthTokenFactoryMySQLRefreshTokenVerifyInfo{
-    refresh_token: string
-}
+export type {OAuthTokenPayload};
 
-export type {OAuthTokenFactoryMySQLAccessTokenVerifyInfo, OAuthTokenFactoryMySQLRefreshTokenVerifyInfo};
-
-class OAuthTokenFactoryMySQL implements OAuthTokenFactory<OAuthTokenFactoryMySQLAccessTokenVerifyInfo, OAuthTokenFactoryMySQLRefreshTokenVerifyInfo>{
-    constructor(public mysqlConnection : Connection, protected oAuthSystemSetting : OAuthSystemSetting){
+class OAuthTokenFactoryMySQL implements OAuthTokenFactory{
+    constructor(public mysqlConnection : Connection, protected oAuthSystemSetting : OAuthSystemSetting, public publicKey : string, public privateKey : string, public signAlgorithm : 'RS256' | 'RS384' | 'RS512'){
 
     }
 
     getAccessTokenMaxLen(): number {
-        throw new Error("Method not implemented.");
+        return 0;
     }
     getAccessTokenExactLen(): number{
-        throw new Error("Method not implemented.");
+        return 0;
     }
     getRefreshTokenMaxLen(): number {
-        throw new Error("Method not implemented.");
+        return this.getRefreshTokenExactLen();
     }
     getRefreshTokenExactLen(): number{
-        throw new Error("Method not implemented.");
+        return this.oAuthSystemSetting.oAuthTokenFormat.refreshTokenCharNum !== undefined ? this.oAuthSystemSetting.oAuthTokenFormat.refreshTokenCharNum : 24;
     }
     
     getOAuthSystemSetting(): OAuthSystemSetting {
@@ -44,64 +47,101 @@ class OAuthTokenFactoryMySQL implements OAuthTokenFactory<OAuthTokenFactoryMySQL
     createOAuthToken(createInfo: OAuthTokenCreateInfo): Promise<OAuthToken> {
         throw new Error("Method not implemented.");
     }
-    verifyOAuthAccessToken(verifyInfo: OAuthTokenFactoryMySQLAccessTokenVerifyInfo): Promise<boolean> {
-        throw new Error("Method not implemented.");
+    verifyOAuthAccessToken(accessToken: OAuthAccessToken, maskUID?: MaskUID, clientID?: APPClientID, requiredScopes?: OAuthScope[]): Promise<boolean> {
+        return new Promise<boolean>((resolve, reject)=>{
+            jwt.verify(accessToken,this.publicKey,{clockTimestamp: Math.round(new Date().getTime() / 1000)},(err,decoded)=>{
+                if(err !== null){
+                    if(!('name' in err)){
+                        reject(new PDKUnknownInnerError('Unexpected err type received when trying to verify JWT Token in OAuthToken System'));
+                    }
+                    switch(err.name){
+                        case 'TokenExpiredError':
+                            reject(new PDKItemExpiredOrUsedError(['oauth_access_token']));
+                            return;
+                        default:
+                            resolve(false);
+                            return;
+                    }
+                }else{
+                    //check remote addr or do anything here
+                    let decodedTokenPayload : JwtPayload & OAuthTokenPayload = decoded as JwtPayload & OAuthTokenPayload;
+                    if(maskUID !== undefined && decodedTokenPayload.maskId !== maskUID){
+                        resolve(false);
+                        return;
+                    }
+                    if(clientID !== undefined && decodedTokenPayload.clientId !== clientID){
+                        resolve(false);
+                        return;
+                    }
+                    if(requiredScopes !== undefined){
+                        for(let i=0; i<requiredScopes.length; i++){
+                            if(!decodedTokenPayload.scopes.includes(requiredScopes[i])){
+                                reject(new PDKPermissionDeniedError(['scopes'],'You do not have required scopes to perform this action'));
+                                return;
+                            }
+                        }
+                    }
+                    resolve(true);
+                    return;
+                }
+            })
+        });
     }
-    setOAuthAcessTokenInvalid(accessToken: OAuthAccessToken): Promise<void>{
-        throw new Error("Method not implemented.");
+    verifyOAuthRefreshToken(refreshToken: OAuthAccessToken, maskUID?: MaskUID, clientID?: APPClientID): Promise<boolean> {
+        return new Promise<boolean>((resolve,reject) => {
+            let currentTimeSecGMT = Math.round(Date.now() / 1000);
+            let selectStatement = "SELECT count(*) as count FROM oauth_tokens WHERE ";
+            let allParams : any[] = [];
+
+            selectStatement += "refresh_token = ?";
+            allParams.push(refreshToken);
+
+            selectStatement += " AND refresh_expire_time > ?";
+            allParams.push(currentTimeSecGMT);
+
+            selectStatement += " AND valid = 1";
+
+            if(maskUID !== undefined){
+                selectStatement += ' AND mask_uid = ?';
+                allParams.push(maskUID);
+            }
+
+            if(clientID !== undefined){
+                selectStatement += ' AND client_id = ?';
+                allParams.push(clientID);
+            }
+
+            selectStatement += ';';
+
+            this.mysqlConnection.execute(selectStatement,allParams,(err, result, fields)=>{
+                if(err !== null){
+                    reject(convertErorToPDKStorageEngineError(err));
+                }else if(!('length' in result) || !('count' in result[0])){
+                    reject(new PDKUnknownInnerError("Unexpected data type received while fetching data from UserToken System"));
+                }else{
+                    resolve(result[0].count >= 1);
+                }
+            })
+        })
     }
-    
-    verifyOAuthRefreshToken(verifyInfo: OAuthTokenFactoryMySQLRefreshTokenVerifyInfo): Promise<boolean> {
-        throw new Error("Method not implemented.");
-    }
-    verifyAndUseOAuthRefreshToken(verifyInfo: OAuthTokenFactoryMySQLRefreshTokenVerifyInfo): Promise<boolean> {
+    verifyAndUseOAuthRefreshToken(refreshToken: OAuthAccessToken, maskUID?: MaskUID, clientID?: APPClientID): Promise<OAuthToken | undefined> {
         throw new Error("Method not implemented.");
     }
 
-    checkVerifyAccessTokenInfoValid(verifyInfo: any): Promise<OAuthTokenFactoryMySQLAccessTokenVerifyInfo> {
-        throw new Error("Method not implemented.");
-    }
-    checkVerifyRefreshTokenInfoValid(verifyInfo: any): Promise<OAuthTokenFactoryMySQLRefreshTokenVerifyInfo> {
-        throw new Error("Method not implemented.");
-    }
-    
-    getOAuthToken(accessToken: OAuthAccessToken): Promise<OAuthToken | undefined>{
-        throw new Error("Method not implemented.");
-    }
-    getOAuthTokenByRefreshToken(refreshToken: OAuthRefreshToken): Promise<OAuthToken | undefined>{
-        throw new Error("Method not implemented.");
-    }
-
-    checkOAuthTokenExist(accessToken: OAuthAccessToken): Promise<boolean>{
-        throw new Error("Method not implemented.");
-    }
     checkOAuthRefreshTokenExist(refreshToken: OAuthRefreshToken): Promise<boolean>{
-        throw new Error("Method not implemented.");
-    }
-    
-    
-    updateOAuthToken(accessToken: OAuthAccessToken, oAuthToken: OAuthToken, oldOAuthToken?: OAuthToken): Promise<void>{
-        throw new Error("Method not implemented.");
-    }
-    updateOAuthTokenByRefreshToken(refreshToken: OAuthRefreshToken, oAuthToken: OAuthToken, oldOAuthToken?: OAuthToken): Promise<void>{
-        throw new Error("Method not implemented.");
-    }
-    
-    deleteOAuthToken(accessToken: OAuthAccessToken): Promise<void>{
-        throw new Error("Method not implemented.");
-    }
-    deleteOAuthTokenByRefreshToken(refreshToken: OAuthRefreshToken): Promise<void>{
-        throw new Error("Method not implemented.");
-    }
-
-    getOAuthTokenCount(maskUID?: MaskUID, userUID?: UserEntityUID, clientID?: APPClientID, appUID?: APPUID, accessToken?: OAuthAccessToken, refreshToken?: OAuthRefreshToken, issueTimeGMTMin?: number, issueTimeGMTMax?: number, refreshedTimeGMTMin?: number, refreshedTimeGMTMax?: number, expireTimeGMTMin?: number, expireTimeGMTMax?: number, refreshExpireTimeGMTMin?: number, refreshExpireTimeGMTMax?: number, valid?: boolean, invalidDueToRefresh?: boolean, useSideRemoteAddr?: string, appSideRemoteAddr?: string): Promise<number>{
-        throw new Error("Method not implemented.");
-    }
-    searchOAuthToken(maskUID?: MaskUID, userUID?: UserEntityUID, clientID?: APPClientID, appUID?: APPUID, accessToken?: OAuthAccessToken, refreshToken?: OAuthRefreshToken, issueTimeGMTMin?: number, issueTimeGMTMax?: number, refreshedTimeGMTMin?: number, refreshedTimeGMTMax?: number, expireTimeGMTMin?: number, expireTimeGMTMax?: number, refreshExpireTimeGMTMin?: number, refreshExpireTimeGMTMax?: number, valid?: boolean, invalidDueToRefresh?: boolean, useSideRemoteAddr?: string, appSideRemoteAddr?: string, numLimit?: number, startPosition?: number): Promise<SearchResult<OAuthToken>>{
-        throw new Error("Method not implemented.");
-    }
-    clearOAuthToken(maskUID?: MaskUID, userUID?: UserEntityUID, clientID?: APPClientID, appUID?: APPUID, accessToken?: OAuthAccessToken, refreshToken?: OAuthRefreshToken, issueTimeGMTMin?: number, issueTimeGMTMax?: number, refreshedTimeGMTMin?: number, refreshedTimeGMTMax?: number, expireTimeGMTMin?: number, expireTimeGMTMax?: number, refreshExpireTimeGMTMin?: number, refreshExpireTimeGMTMax?: number, valid?: boolean, invalidDueToRefresh?: boolean, useSideRemoteAddr?: string, appSideRemoteAddr?: string, numLimit?: number, startPosition?: number): Promise<void>{
-        throw new Error("Method not implemented.");
+        return new Promise<boolean>((resolve, reject) => {
+            let selectStatement = "SELECT count(*) as count FROM oauth_tokens WHERE refresh_token = ?;";
+            this.mysqlConnection.execute(selectStatement,refreshToken,(err,result,fields) => {
+                if(err !== null){
+                    reject(convertErorToPDKStorageEngineError(err));
+                }
+                if(!('length' in result) || result.length < 1 || !('count' in result[0])){
+                    reject(new PDKUnknownInnerError('Unexpected data type is obtained when trying to fetch OAuth Refresh Token Info from OAuthToken System'));
+                }else{
+                    resolve(result[0].count >= 1);
+                }
+            })
+        });
     }
 
     install(params: OAuthTokenFactoryInstallInfo): Promise<void> {
@@ -110,19 +150,14 @@ class OAuthTokenFactoryMySQL implements OAuthTokenFactory<OAuthTokenFactoryMySQL
 `CREATE TABLE oauth_tokens
 (
     mask_uid ${getMySQLTypeForMaskIDUID(params.maskIDEntityFactory)} NOT NULL,
-    user_uid ${getMySQLTypeForUserUID(params.userEntityFactory)},
     client_id ${getMySQLTypeForAPPClientID(params.appEntityFactory)} NOT NULL,
-    app_uid ${getMySQLTypeForAPPEntityUID(params.appEntityFactory)},
-    access_token ${getMySQLTypeForOAuthToken(this)} NOT NULL,
     refresh_token ${typeForRefreshToken} NOT NULL,
     issue_time INT UNSIGNED NOT NULL,
-    refreshed_time INT UNSIGNED NOT NULL,
-    expire_time INT UNSIGNED NOT NULL,
     refresh_expire_time INT UNSIGNED NOT NULL,
     valid TINYINT NOT NULL,
     user_remote_addr VARCHAR(45),
     app_remote_addr VARCHAR(45),
-    PRIMARY KEY (access_token, refresh_token)
+    PRIMARY KEY (refresh_token)
 );`
         return new Promise<void>((resolve,reject) => {
             this.mysqlConnection.query(createTableStatement,(err, result, fields)=>{

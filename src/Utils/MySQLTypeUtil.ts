@@ -42,7 +42,7 @@ function getMySQLTypeForAPPClientID(appEntityFactory: APPEntityFactory){
 
 export {getMySQLTypeForAPPClientID};
 
-function getMySQLTypeForOAuthToken(oAuthTokenFactory: OAuthTokenFactory<any,any>){
+function getMySQLTypeForOAuthToken(oAuthTokenFactory: OAuthTokenFactory){
     return getMySQLTypeFor(false,oAuthTokenFactory.getAccessTokenMaxLen(),oAuthTokenFactory.getAccessTokenExactLen !== undefined ? oAuthTokenFactory.getAccessTokenExactLen() : undefined);
 }
 
