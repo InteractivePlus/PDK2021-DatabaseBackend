@@ -7,9 +7,9 @@ import { getMySQLTypeForAPPClientID, getMySQLTypeForAPPEntityUID, getMySQLTypeFo
 import { convertErorToPDKStorageEngineError } from './Utils/MySQLErrorUtil';
 import {generateRandomHexString} from "@interactiveplus/pdk2021-common/dist/Utilities/HEXString";
 import {  PDKItemNotFoundError, PDKUnknownInnerError } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/Error/PDKException';
-import { UserEntityUID } from '../../pdk2021-common/dist/AbstractDataTypes/User/UserEntity';
-import { APPClientID, APPUID } from '../../pdk2021-common/dist/AbstractDataTypes/RegisteredAPP/APPEntityFormat';
-import { MaskUID } from '../../pdk2021-common/dist/AbstractDataTypes/MaskID/MaskIDEntity';
+import { UserEntityUID } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/User/UserEntity';
+import { APPClientID, APPUID } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/RegisteredAPP/APPEntityFormat';
+import { MaskUID } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/MaskID/MaskIDEntity';
 
 class VericodeFactoryMySQL implements VerificationCodeEntityFactory{
     constructor(public mysqlConnection:Connection, protected communicationSystemSetting : BackendCommunicationSystemSetting, public useScopeMaxLen: number) {}
