@@ -181,9 +181,10 @@ class UserTokenFactoryMySQL implements UserTokenFactory<UserTokenFactoryMySQLAcc
         return parsedItem;
     }
     verifyUserRefreshToken(verifyInfo: UserTokenFactoryMySQLRefreshTokenVerifyInfo): Promise<boolean> {
-        let selectStatement = "SELECT count(*) as count FROM user_tokens WHERE refresh_token = ? AND uid = ? AND valid = 1;"
+        let currentTimeSecGMT = Math.round(Date.now() / 1000);
+        let selectStatement = "SELECT count(*) as count FROM user_tokens WHERE refresh_token = ? AND uid = ? AND valid = 1 AND refresh_expire_time > ?;"
         return new Promise<boolean>((resolve,reject) => {
-            this.mysqlConnection.execute(selectStatement,[verifyInfo.user_refresh_token, verifyInfo.uid],(err, result, fields)=>{
+            this.mysqlConnection.execute(selectStatement,[verifyInfo.user_refresh_token, verifyInfo.uid, currentTimeSecGMT],(err, result, fields)=>{
                 if(err !== null){
                     reject(convertErorToPDKStorageEngineError(err));
                 }else if(!('length' in result) || !('count' in result[0])){
@@ -195,12 +196,13 @@ class UserTokenFactoryMySQL implements UserTokenFactory<UserTokenFactoryMySQLAcc
         })
     }
     verifyAndUseUserRefreshToken(verifyInfo: UserTokenFactoryMySQLRefreshTokenVerifyInfo): Promise<boolean> {
+        let currentTimeSecGMT = Math.round(Date.now() / 1000);
         let updateStatement = 
         `UPDATE user_tokens SET 
         SET valid = 0 
-        WHERE refresh_token = ? AND uid = ? AND valid = 1;`;
+        WHERE refresh_token = ? AND uid = ? AND valid = 1 AND refresh_expire_time > ?;`;
         return new Promise<boolean>((resolve,reject) => {
-            this.mysqlConnection.execute(updateStatement,[verifyInfo.user_refresh_token, verifyInfo.uid],(err, result, fields)=>{
+            this.mysqlConnection.execute(updateStatement,[verifyInfo.user_refresh_token, verifyInfo.uid, currentTimeSecGMT],(err, result, fields)=>{
                 if(err !== null){
                     reject(convertErorToPDKStorageEngineError(err));
                 }else if(!('affectedRows' in result)){
