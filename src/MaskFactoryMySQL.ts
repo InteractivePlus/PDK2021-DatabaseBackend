@@ -290,7 +290,7 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
     clearMaskIDEntity(maskUID?: MaskUID, displayName?: string, userUID?: UserEntityUID, createTimeMin?: number, createTimeMax?: number, numLimit?: number, startPosition?: number): Promise<void>{
         return new Promise<void>(
             (resolve, reject) => {
-                let selectStatement = `DELETE FROM mask_ids`;
+                let deleteStatement = `DELETE FROM mask_ids`;
                 let allParams : any[] = [];
                 let allWHERESubClause : string[] = [];
                 if(maskUID !== undefined){
@@ -313,15 +313,15 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
                     allWHERESubClause.push('createTime <= ?');
                     allParams.push(createTimeMax);
                 }
-                selectStatement += allWHERESubClause.length > 1 ? ' WHERE ' + allWHERESubClause.join(' AND ') : '';
+                deleteStatement += allWHERESubClause.length > 1 ? ' WHERE ' + allWHERESubClause.join(' AND ') : '';
                 if(numLimit !== undefined){
-                    selectStatement += ' LIMIT ' + numLimit;
+                    deleteStatement += ' LIMIT ' + numLimit;
                 }
                 if(startPosition !== undefined){
-                    selectStatement += ' OFFSET ' + startPosition;
+                    deleteStatement += ' OFFSET ' + startPosition;
                 }
 
-                this.mysqlConnection.execute(selectStatement, allParams, 
+                this.mysqlConnection.execute(deleteStatement, allParams, 
                     (err, result, fields) => {
                         if (err !== null) {
                             reject(convertErorToPDKStorageEngineError(err));

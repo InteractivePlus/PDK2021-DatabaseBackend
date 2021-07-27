@@ -41,7 +41,7 @@ class AvatarFactoryMySQL implements AvatarEntityFactory{
                                     "salt" in firstRow && 
                                     "uploaded_by" in firstRow && 
                                     "upload_time" in firstRow
-                                ){
+                                ) {
                                     let returnedData:AvatarEntity = {
                                         data: {
                                             type: AvatarFactoryMySQL.parseDataType(firstRow.data_type),
@@ -75,7 +75,7 @@ class AvatarFactoryMySQL implements AvatarEntityFactory{
                     let createStatement = 
                     `INSERT INTO avatars 
                     (data_type, data_content_type, data_content, salt, uploaded_by, upload_time) 
-                    VALUES (?, ?, ?, ?, ?, ?)`;
+                    VALUES (?, ?, ?, ?, ?, ?);`;
                     this.mysqlConnection.execute(
                         createStatement, 
                         [
