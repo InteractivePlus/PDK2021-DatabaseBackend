@@ -28,6 +28,8 @@ enum OAuthScopeMySQLConv{
     storage = 2
 }
 
+export type {OAuthScopeMySQLConv};
+
 interface OAuthTokenMySQLRefreshTokenFetchResult{
     mask_uid: MaskUID,
     client_id: APPClientID,
@@ -62,6 +64,9 @@ function convertOAuthScopesToMySQLOAuthScopes(scopes : OAuthScope[]) : number{
     })
     return returnVal;
 }
+
+
+export {convertMySQLOAuthScopesToOAuthScopes, convertOAuthScopesToMySQLOAuthScopes};
 
 class OAuthTokenFactoryMySQL implements OAuthTokenFactory{
     constructor(public mysqlConnection : Connection, protected oAuthSystemSetting : OAuthSystemSetting, public publicKey : string, public privateKey : string, public signAlgorithm : 'RS256' | 'RS384' | 'RS512'){
