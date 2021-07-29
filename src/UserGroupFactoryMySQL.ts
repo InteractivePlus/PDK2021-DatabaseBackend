@@ -1,6 +1,6 @@
 import { Connection } from "mysql2";
 import { BackendUserSystemSetting } from "@interactiveplus/pdk2021-backendcore/dist/AbstractDataTypes/SystemSetting/BackendUserSystemSetting";
-import { UserGroupFactory, UserGroupFactoryInstallInfo } from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/UserGroup/UserGroupFactory";
+import { UserGroupCreateInfo, UserGroupFactory, UserGroupFactoryInstallInfo } from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/UserGroup/UserGroupFactory";
 import { UserGroup } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/UserGroup/UserGroup";
 import { SearchResult } from "@interactiveplus/pdk2021-common/dist/InternalDataTypes/SearchResult";
 import { convertErorToPDKStorageEngineError } from "./Utils/MySQLErrorUtil";
@@ -50,7 +50,7 @@ class UserGroupFactoryMySQL implements UserGroupFactory{
         return this.backendUserSystemSetting;
     }
 
-    createUserGroup(createInfo: UserGroup): Promise<UserGroup> {
+    createUserGroup(createInfo: UserGroupCreateInfo): Promise<UserGroup> {
         return new Promise<UserGroup> (
             (resolve, reject) => {
                 let createStatement = 
@@ -91,7 +91,7 @@ class UserGroupFactoryMySQL implements UserGroupFactory{
     getUserGroup(groupId: string): Promise<UserGroup | undefined> {
         return new Promise<UserGroup | undefined> (
             (resolve, reject) => {
-                let selectStatement = ` SELECT * FROM user_groups WHERE group_id = ?;`;
+                let selectStatement = `SELECT * FROM user_groups WHERE group_id = ? LIMIT 1;`;
                 this.mysqlConnection.execute(
                     selectStatement,
                     [groupId],
@@ -104,26 +104,9 @@ class UserGroupFactoryMySQL implements UserGroupFactory{
                                     resolve(undefined);
                                 } else {
                                     let firstRow = result[0];
-                                    if (
-                                        "group_id" in firstRow &&
-                                        "nickname" in firstRow &&
-                                        "description" in firstRow &&
-                                        "permissions" in firstRow &&
-                                        "settings" in firstRow &&
-                                        "avatar_salt" in firstRow
-                                    ) {
-                                        let returnedUserGroup : UserGroup = {
-                                            groupId : firstRow.groupId,
-                                            nickname : firstRow.nickname,
-                                            description : firstRow.description,
-                                            permissions : firstRow.permissions,
-                                            settings : firstRow.settings,
-                                            avatarSalt : firstRow.avatarSalt
-                                        }
-                                        resolve(returnedUserGroup);
-                                    } else {
-                                        reject(new PDKExceptions.PDKUnknownInnerError('Unexpected datatype received when fetching MYSQL data from user group System'));
-                                    }
+                                    
+                                    let returnedUserGroup : UserGroup = UserGroupFactoryMySQL.parseUserGroupEntityFromDB(firstRow);
+                                    resolve(returnedUserGroup);
                                 }
                             } else {
                                 reject(new PDKExceptions.PDKUnknownInnerError('Unexpected datatype received when fetching MYSQL data from user group System'));
@@ -241,7 +224,7 @@ class UserGroupFactoryMySQL implements UserGroupFactory{
                     allParams.push(avatarSalt);
                 }
 
-                selectStatement += allWHERESubClause.length > 1 ? ' WHERE ' + allWHERESubClause.join(' AND ') : '';
+                selectStatement += allWHERESubClause.length >= 1 ? ' WHERE ' + allWHERESubClause.join(' AND ') : '';
 
                 this.mysqlConnection.execute(
                     selectStatement,
@@ -286,7 +269,7 @@ class UserGroupFactoryMySQL implements UserGroupFactory{
                     allParams.push(avatarSalt);
                 }
 
-                selectStatement += allWHERESubClause.length > 1 ? ' WHERE ' + allWHERESubClause.join(' AND ') : '';
+                selectStatement += allWHERESubClause.length >= 1 ? ' WHERE ' + allWHERESubClause.join(' AND ') : '';
 
                 if(numLimit !== undefined){
                     selectStatement += ' LIMIT ' + numLimit;
@@ -341,7 +324,7 @@ class UserGroupFactoryMySQL implements UserGroupFactory{
                     allParams.push(avatarSalt);
                 }
 
-                deleteStatement += allWHERESubClause.length > 1 ? ' WHERE ' + allWHERESubClause.join(' AND ') : '';
+                deleteStatement += allWHERESubClause.length >= 1 ? ' WHERE ' + allWHERESubClause.join(' AND ') : '';
 
                 if(numLimit !== undefined){
                     deleteStatement += ' LIMIT ' + numLimit;
