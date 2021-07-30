@@ -89,10 +89,10 @@ class APPEntityFactoryMySQL implements APPEntityFactory{
             client_secret CHAR(${this.getAPPClientSecretExactLen()}) NOT NULL,
             display_name VARCHAR(${this.getDisplayNameMaxLen()}),
             description VARCHAR(${this.getDescriptionMaxLen()}),
-            creator_uid ${getMySQLTypeForUserUID(params.userEntityFactory)},
+            creator_uid ${getMySQLTypeForUserUID(params.userEntityFactory)} NOT NULL,
             create_time INT UNSIGNED NOT NULL,
             last_modified_time INT UNSIGNED NOT NULL,
-            owner_uid ${getMySQLTypeForUserUID(params.userEntityFactory)},
+            owner_uid ${getMySQLTypeForUserUID(params.userEntityFactory)} NOT NULL,
             avatar ${getMySQLTypeForAvatarSalt(params.avatarEntityFactory)},
             group_id ${getMySQLTypeForAPPGroupID(params.appGroupEntityFactory)} NOT NULL,
             PRIMARY KEY (appuid, client_id)

@@ -2,14 +2,15 @@ import {Connection} from 'mysql2';
 import { OAuthTokenCreateInfo, OAuthTokenFactory, OAuthTokenFactoryInstallInfo } from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/OAuth/Token/OAuthTokenFactory";
 import { MaskUID } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/MaskID/MaskIDEntity";
 import { OAuthAccessToken, OAuthRefreshToken, OAuthToken } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/OAuth/Token/OAuthToken";
-import { APPClientID } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/RegisteredAPP/APPEntityFormat";
+import { APPClientID, APPUID } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/RegisteredAPP/APPEntityFormat";
 import { OAuthSystemSetting } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/SystemSetting/OAuthSystemSetting";
-import { getMySQLTypeFor, getMySQLTypeForAPPClientID, getMySQLTypeForMaskIDUID } from './Utils/MySQLTypeUtil';
+import { getMySQLTypeFor, getMySQLTypeForAPPClientID, getMySQLTypeForAPPEntityUID, getMySQLTypeForMaskIDUID, getMySQLTypeForUserUID } from './Utils/MySQLTypeUtil';
 import { convertErorToPDKStorageEngineError } from './Utils/MySQLErrorUtil';
 import { PDKInnerArgumentError, PDKItemExpiredOrUsedError, PDKPermissionDeniedError, PDKUnknownInnerError } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/Error/PDKException';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import { OAuthScope } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/OAuth/OAuthScope';
 import { generateRandomHexString } from '@interactiveplus/pdk2021-common/dist/Utilities/HEXString';
+import { UserEntityUID } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/User/UserEntity';
 
 interface OAuthTokenPayload{
     maskId: MaskUID,
@@ -32,7 +33,9 @@ export type {OAuthScopeMySQLConv};
 
 interface OAuthTokenMySQLRefreshTokenFetchResult{
     mask_uid: MaskUID,
+    user_uid: UserEntityUID,
     client_id: APPClientID,
+    app_uid: APPUID,
     refresh_token: OAuthRefreshToken,
     issue_time: number,
     refresh_expire_time: number,
@@ -132,7 +135,9 @@ class OAuthTokenFactoryMySQL implements OAuthTokenFactory{
                 `INSERT INTO oauth_tokens 
                 (
                     mask_uid,
+                    user_uid,
                     client_id,
+                    app_uid,
                     refresh_token,
                     issue_time,
                     refresh_expire_time,
@@ -149,13 +154,17 @@ class OAuthTokenFactoryMySQL implements OAuthTokenFactory{
                     ?,
                     ?,
                     ?,
+                    ?,
+                    ?,
                     ?
                 );`;
                 this.mysqlConnection.execute(
                     createStatement,
                     [
                         createInfo.maskUID,
+                        createInfo.userUID,
                         createInfo.clientID,
+                        createInfo.appUID,
                         refreshToken,
                         createInfo.issueTimeGMT,
                         createInfo.refreshExpireTimeGMT,
@@ -329,7 +338,9 @@ class OAuthTokenFactoryMySQL implements OAuthTokenFactory{
                     }else{
                         let createInfo : OAuthTokenCreateInfo = {
                             maskUID: fetchedRefreshToken.mask_uid,
+                            userUID: fetchedRefreshToken.user_uid,
                             clientID: fetchedRefreshToken.client_id,
+                            appUID: fetchedRefreshToken.app_uid,
                             issueTimeGMT: fetchedRefreshToken.issue_time,
                             refreshedTimeGMT: currentTimeSecGMT,
                             expireTimeGMT: currentTimeSecGMT + this.oAuthSystemSetting.oAuthTokenAvailableDuration.accessToken,
@@ -368,7 +379,9 @@ class OAuthTokenFactoryMySQL implements OAuthTokenFactory{
 `CREATE TABLE oauth_tokens
 (
     mask_uid ${getMySQLTypeForMaskIDUID(params.maskIDEntityFactory)} NOT NULL,
+    user_uid ${getMySQLTypeForUserUID(params.userEntityFactory)} NOT NULL,
     client_id ${getMySQLTypeForAPPClientID(params.appEntityFactory)} NOT NULL,
+    app_uid ${getMySQLTypeForAPPEntityUID(params.appEntityFactory)} NOT NULL,
     refresh_token ${typeForRefreshToken} NOT NULL,
     issue_time INT UNSIGNED NOT NULL,
     refresh_expire_time INT UNSIGNED NOT NULL,
