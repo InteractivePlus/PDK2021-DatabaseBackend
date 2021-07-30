@@ -11,9 +11,9 @@ import { SearchResult } from '@interactiveplus/pdk2021-common/dist/InternalDataT
 import { getMySQLTypeForAPPClientID, getMySQLTypeForAPPEntityUID, getMySQLTypeForMaskIDUID } from './Utils/MySQLTypeUtil';
 import { convertErorToPDKStorageEngineError } from './Utils/MySQLErrorUtil';
 import { generateRandomHexString } from '@interactiveplus/pdk2021-common/dist/Utilities/HEXString';
-import {  PDKInnerArgumentError, PDKUnknownInnerError } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/Error/PDKException';
+import {  PDKInnerArgumentError, PDKItemNotFoundError, PDKUnknownInnerError } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/Error/PDKException';
 import { fetchMySQL } from './Utils/MySQLFetchUtil';
-import { convertMySQLOAuthScopesToOAuthScopes, convertOAuthScopesToMySQLOAuthScopes } from './OAuthTokenFactoryMySQL';
+import { convertMySQLOAuthScopesToOAuthScopes, convertOAuthScopesToMySQLOAuthScopes, convertOAuthScopeToMySQLOAuthScope } from './OAuthTokenFactoryMySQL';
 
 interface OAuthAuthCodeFactoryMySQLVerifyInfo{
     authCode: string
@@ -264,17 +264,69 @@ class OAuthAuthCodeFactoryMySQL implements AuthorizationCodeEntityFactory{
     async getAuthorizationCode(authCode : string) : Promise<AuthorizationCodeEntity | undefined>{
         return await this.findAuthCode(authCode);
     }
-    updateAuthorizationCode(authCode : string, authCodeEntity : AuthorizationCodeEntity, oldAuthCodeEntity?: AuthorizationCodeEntity) : Promise<void>{
-        throw new Error('Method not implemented.');
+    async updateAuthorizationCode(authCode : string, authCodeEntity : AuthorizationCodeEntity, oldAuthCodeEntity?: AuthorizationCodeEntity) : Promise<void>{
+        let updateStatement = 
+        `UPDATE oauth_auth_codes SET 
+        auth_method = ?,
+        issue_time = ?,
+        expire_time = ?,
+        user_remote_addr = ?,
+        appuid = ?,
+        client_id = ?,
+        mask_uid = ?,
+        challenge_type = ?,
+        used = ?,
+        scopes = ?,
+        code_challenge = ?
+        WHERE auth_code = ?;`;
+        let fetchResult = await fetchMySQL(
+            this.mysqlConnection,
+            updateStatement,
+            [
+                convertAuthMethodToMySQL(authCodeEntity.authMethod),
+                authCodeEntity.issueTimeGMT,
+                authCodeEntity.expireTimeGMT,
+                authCodeEntity.grantUserRemoteAddr,
+                authCodeEntity.appUID,
+                authCodeEntity.clientID,
+                authCodeEntity.maskUID,
+                convertAuthChallengeTypeToMySQL(authCodeEntity.challengeType),
+                authCodeEntity.used ? 1 : 0,
+                convertOAuthScopesToMySQLOAuthScopes(authCodeEntity.scopes),
+                authCodeEntity.codeChallenge,
+                authCode
+            ],
+            true
+        );
+        if(!('affectedRows' in fetchResult.result)){
+            throw new PDKUnknownInnerError('Unexpected data type received when updating data in OAuth AuthCode System');
+        }
+        if(fetchResult.result.affectedRows < 1){
+            throw new PDKItemNotFoundError(['oauth_auth_code']);
+        }
+        return;
     }
-    deleteAuthorizationCode(authCode : string) : Promise<void>{
-        throw new Error('Method not implemented.');
+    async deleteAuthorizationCode(authCode : string) : Promise<void>{
+        let delStatement = "DELETE FROM oauth_auth_codes WHERE auth_code = ?;";
+        let delResult = await fetchMySQL(this.mysqlConnection,delStatement,[authCode],true);
+        if(!('affectedRows' in delResult.result)){
+            throw new PDKUnknownInnerError('Unexpected data type received when deleting data in OAuth AuthCode System');
+        }
+        if(delResult.result.affectedRows < 1){
+            throw new PDKItemNotFoundError(['oauth_auth_code']);
+        }
+        return;
     }
 
-    checkAuthorizationCodeExist(authCode : string) : Promise<boolean>{
-        throw new Error('Method not implemented.');
+    async checkAuthorizationCodeExist(authCode : string) : Promise<boolean>{
+        let selectStatement = "SELECT count(*) as count FROM oauth_auth_codes WHERE auth_code = ?;";
+        let fetchResult = await fetchMySQL(this.mysqlConnection,selectStatement,[authCode],true);
+        if(!('length' in fetchResult.result) || fetchResult.result.length < 1 || !('count' in fetchResult.result[0])){
+            throw new PDKUnknownInnerError('Unexpected data type received when fetching data in OAuth AuthCode System');
+        }
+        return fetchResult.result[0].count >= 1;
     }
-    getAuthorizationCodeCount(
+    async getAuthorizationCodeCount(
         authCode?: string,
         authMethod?: OAuthAuthorizationMethod,
         issueTimeGMTMin?: number,
@@ -290,9 +342,80 @@ class OAuthAuthCodeFactoryMySQL implements AuthorizationCodeEntityFactory{
         scopes?: OAuthScope[],
         codeChallenge?: string
     ) : Promise<number>{
-        throw new Error('Method not implemented.');
+        let selectStatement = 'SELECT count(*) as count FROM oauth_auth_codes';
+        let allWhereClauses : string[] = [];
+        let allParams : any[] = [];
+        if(authCode !== undefined){
+            allWhereClauses.push('auth_code = ?');
+            allParams.push(authCode);
+        }
+        if(authMethod !== undefined){
+            allWhereClauses.push('auth_method = ?');
+            allParams.push(convertAuthMethodToMySQL(authMethod));
+        }
+        if(issueTimeGMTMin !== undefined){
+            allWhereClauses.push('issue_time >= ?');
+            allParams.push(issueTimeGMTMin);
+        }
+        if(issueTimeGMTMax !== undefined){
+            allWhereClauses.push('issue_time <= ?');
+            allParams.push(issueTimeGMTMax);
+        }
+        if(expireTimeGMTMin !== undefined){
+            allWhereClauses.push('expire_time >= ?');
+            allParams.push(expireTimeGMTMin);
+        }
+        if(expireTimeGMTMax !== undefined){
+            allWhereClauses.push('expire_time <= ?');
+            allParams.push(expireTimeGMTMax);
+        }
+        if(grantUserRemoteAddr !== undefined){
+            allWhereClauses.push('user_remote_addr LIKE ?');
+            allParams.push('%' + grantUserRemoteAddr + '%');
+        }
+        if(appUID !== undefined){
+            allWhereClauses.push('appuid = ?');
+            allParams.push(appUID);
+        }
+        if(clientID !== undefined){
+            allWhereClauses.push('client_id = ?');
+            allParams.push(clientID);
+        }
+        if(maskUID !== undefined){
+            allWhereClauses.push('mask_uid = ?');
+            allParams.push(maskUID);
+        }
+        if(challengeType !== undefined){
+            allWhereClauses.push('challenge_type = ?');
+            allParams.push(convertAuthChallengeTypeToMySQL(challengeType));
+        }
+        if(used !== undefined){
+            allWhereClauses.push('used = ?');
+            allParams.push(used ? 1 : 0);
+        }
+        if(scopes !== undefined){
+            for(let i=0; i<scopes.length;i++){
+                let scope = scopes[i];
+
+                allWhereClauses.push('(scopes & ?) != 0');
+                allParams.push(convertOAuthScopeToMySQLOAuthScope(scope));
+            }
+        }
+        if(codeChallenge !== undefined){
+            allWhereClauses.push('code_challenge = ?');
+            allParams.push(codeChallenge);
+        }
+
+        selectStatement += allWhereClauses.length >= 1 ? ' WHERE ' + allWhereClauses.join(' AND ') : '';
+        selectStatement += ';';
+
+        let fetchResult = await fetchMySQL(this.mysqlConnection,selectStatement,allParams,true);
+        if(!('length' in fetchResult.result) || fetchResult.result.length < 1 || !('count' in fetchResult.result[0])){
+            throw new PDKUnknownInnerError('Unexpected data type received when fetching data in OAuth AuthCode System');
+        }
+        return fetchResult.result[0].count;
     }
-    searchAuthorizationCode(
+    async searchAuthorizationCode(
         authCode?: string,
         authMethod?: OAuthAuthorizationMethod,
         issueTimeGMTMin?: number,
@@ -310,9 +433,90 @@ class OAuthAuthCodeFactoryMySQL implements AuthorizationCodeEntityFactory{
         numLimit?: number,
         startPosition?: number
     ) : Promise<SearchResult<AuthorizationCodeEntity>>{
-        throw new Error('Method not implemented.');
+        let selectStatement = 'SELECT * FROM oauth_auth_codes';
+        let allWhereClauses : string[] = [];
+        let allParams : any[] = [];
+        if(authCode !== undefined){
+            allWhereClauses.push('auth_code = ?');
+            allParams.push(authCode);
+        }
+        if(authMethod !== undefined){
+            allWhereClauses.push('auth_method = ?');
+            allParams.push(convertAuthMethodToMySQL(authMethod));
+        }
+        if(issueTimeGMTMin !== undefined){
+            allWhereClauses.push('issue_time >= ?');
+            allParams.push(issueTimeGMTMin);
+        }
+        if(issueTimeGMTMax !== undefined){
+            allWhereClauses.push('issue_time <= ?');
+            allParams.push(issueTimeGMTMax);
+        }
+        if(expireTimeGMTMin !== undefined){
+            allWhereClauses.push('expire_time >= ?');
+            allParams.push(expireTimeGMTMin);
+        }
+        if(expireTimeGMTMax !== undefined){
+            allWhereClauses.push('expire_time <= ?');
+            allParams.push(expireTimeGMTMax);
+        }
+        if(grantUserRemoteAddr !== undefined){
+            allWhereClauses.push('user_remote_addr LIKE ?');
+            allParams.push('%' + grantUserRemoteAddr + '%');
+        }
+        if(appUID !== undefined){
+            allWhereClauses.push('appuid = ?');
+            allParams.push(appUID);
+        }
+        if(clientID !== undefined){
+            allWhereClauses.push('client_id = ?');
+            allParams.push(clientID);
+        }
+        if(maskUID !== undefined){
+            allWhereClauses.push('mask_uid = ?');
+            allParams.push(maskUID);
+        }
+        if(challengeType !== undefined){
+            allWhereClauses.push('challenge_type = ?');
+            allParams.push(convertAuthChallengeTypeToMySQL(challengeType));
+        }
+        if(used !== undefined){
+            allWhereClauses.push('used = ?');
+            allParams.push(used ? 1 : 0);
+        }
+        if(scopes !== undefined){
+            for(let i=0; i<scopes.length;i++){
+                let scope = scopes[i];
+
+                allWhereClauses.push('(scopes & ?) != 0');
+                allParams.push(convertOAuthScopeToMySQLOAuthScope(scope));
+            }
+        }
+        if(codeChallenge !== undefined){
+            allWhereClauses.push('code_challenge = ?');
+            allParams.push(codeChallenge);
+        }
+        selectStatement += allWhereClauses.length >= 1 ? ' WHERE ' + allWhereClauses.join(' AND ') : '';
+        if(numLimit !== undefined){
+            selectStatement += ' LIMIT ' + numLimit.toString();
+        }
+        if(startPosition !== undefined){
+            selectStatement += ' OFFSET ' + startPosition.toString();
+        }
+        let fetchResult = await fetchMySQL(this.mysqlConnection,selectStatement,allParams,true);
+        if(!('length' in fetchResult.result)){
+            throw new PDKUnknownInnerError('Unexpected data type received when fetching data from OAuth AuthCode System');
+        }
+        
+        let allParsedEntities : AuthorizationCodeEntity[] = [];
+
+        for(let i = 0; i < fetchResult.result.length; i++){
+            let currentRow = fetchResult.result[i];
+            allParsedEntities.push(this.getAuthCodeFromDBRow(currentRow));
+        }
+        return new SearchResult(allParsedEntities.length,allParsedEntities);
     }
-    clearAuthorizationCode(
+    async clearAuthorizationCode(
         authCode?: string,
         authMethod?: OAuthAuthorizationMethod,
         issueTimeGMTMin?: number,
@@ -330,7 +534,78 @@ class OAuthAuthCodeFactoryMySQL implements AuthorizationCodeEntityFactory{
         numLimit?: number,
         startPosition?: number
     ) : Promise<void>{
-        throw new Error('Method not implemented.');
+        let deleteStatement = 'DELETE FROM oauth_auth_codes';
+        let allWhereClauses : string[] = [];
+        let allParams : any[] = [];
+        if(authCode !== undefined){
+            allWhereClauses.push('auth_code = ?');
+            allParams.push(authCode);
+        }
+        if(authMethod !== undefined){
+            allWhereClauses.push('auth_method = ?');
+            allParams.push(convertAuthMethodToMySQL(authMethod));
+        }
+        if(issueTimeGMTMin !== undefined){
+            allWhereClauses.push('issue_time >= ?');
+            allParams.push(issueTimeGMTMin);
+        }
+        if(issueTimeGMTMax !== undefined){
+            allWhereClauses.push('issue_time <= ?');
+            allParams.push(issueTimeGMTMax);
+        }
+        if(expireTimeGMTMin !== undefined){
+            allWhereClauses.push('expire_time >= ?');
+            allParams.push(expireTimeGMTMin);
+        }
+        if(expireTimeGMTMax !== undefined){
+            allWhereClauses.push('expire_time <= ?');
+            allParams.push(expireTimeGMTMax);
+        }
+        if(grantUserRemoteAddr !== undefined){
+            allWhereClauses.push('user_remote_addr LIKE ?');
+            allParams.push('%' + grantUserRemoteAddr + '%');
+        }
+        if(appUID !== undefined){
+            allWhereClauses.push('appuid = ?');
+            allParams.push(appUID);
+        }
+        if(clientID !== undefined){
+            allWhereClauses.push('client_id = ?');
+            allParams.push(clientID);
+        }
+        if(maskUID !== undefined){
+            allWhereClauses.push('mask_uid = ?');
+            allParams.push(maskUID);
+        }
+        if(challengeType !== undefined){
+            allWhereClauses.push('challenge_type = ?');
+            allParams.push(convertAuthChallengeTypeToMySQL(challengeType));
+        }
+        if(used !== undefined){
+            allWhereClauses.push('used = ?');
+            allParams.push(used ? 1 : 0);
+        }
+        if(scopes !== undefined){
+            for(let i=0; i<scopes.length;i++){
+                let scope = scopes[i];
+
+                allWhereClauses.push('(scopes & ?) != 0');
+                allParams.push(convertOAuthScopeToMySQLOAuthScope(scope));
+            }
+        }
+        if(codeChallenge !== undefined){
+            allWhereClauses.push('code_challenge = ?');
+            allParams.push(codeChallenge);
+        }
+        deleteStatement += allWhereClauses.length >= 1 ? ' WHERE ' + allWhereClauses.join(' AND ') : '';
+        if(numLimit !== undefined){
+            deleteStatement += ' LIMIT ' + numLimit.toString();
+        }
+        if(startPosition !== undefined){
+            deleteStatement += ' OFFSET ' + startPosition.toString();
+        }
+        await fetchMySQL(this.mysqlConnection,deleteStatement,allParams,true);
+        return;
     }
 
     install(params: AuthorizationCodeEntityFactoryInstallInfo): Promise<void> {

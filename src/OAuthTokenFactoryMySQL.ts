@@ -6,7 +6,7 @@ import { APPClientID } from "@interactiveplus/pdk2021-common/dist/AbstractDataTy
 import { OAuthSystemSetting } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/SystemSetting/OAuthSystemSetting";
 import { getMySQLTypeFor, getMySQLTypeForAPPClientID, getMySQLTypeForMaskIDUID } from './Utils/MySQLTypeUtil';
 import { convertErorToPDKStorageEngineError } from './Utils/MySQLErrorUtil';
-import { PDKItemExpiredOrUsedError, PDKPermissionDeniedError, PDKUnknownInnerError } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/Error/PDKException';
+import { PDKInnerArgumentError, PDKItemExpiredOrUsedError, PDKPermissionDeniedError, PDKUnknownInnerError } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/Error/PDKException';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import { OAuthScope } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/OAuth/OAuthScope';
 import { generateRandomHexString } from '@interactiveplus/pdk2021-common/dist/Utilities/HEXString';
@@ -44,10 +44,10 @@ interface OAuthTokenMySQLRefreshTokenFetchResult{
 
 function convertMySQLOAuthScopesToOAuthScopes(dbVal : number) : OAuthScope[]{
     let returnArr : OAuthScope[] = [];
-    if((dbVal & OAuthScopeMySQLConv.basic_info) === 1){
+    if((dbVal & OAuthScopeMySQLConv.basic_info) !== 0){
         returnArr.push('basic_info');
     }
-    if((dbVal & OAuthScopeMySQLConv.storage) === 1){
+    if((dbVal & OAuthScopeMySQLConv.storage) !== 0){
         returnArr.push('storage');
     }
     return returnArr;
@@ -65,8 +65,29 @@ function convertOAuthScopesToMySQLOAuthScopes(scopes : OAuthScope[]) : number{
     return returnVal;
 }
 
+function convertMySQLOAuthScopeToOAuthScope(dbVal: OAuthScopeMySQLConv) : OAuthScope{
+    switch(dbVal){
+        case OAuthScopeMySQLConv.basic_info:
+            return 'basic_info';
+        case OAuthScopeMySQLConv.storage:
+            return 'storage';
+        default:
+            throw new PDKInnerArgumentError(['dbVal']);
+    }
+}
 
-export {convertMySQLOAuthScopesToOAuthScopes, convertOAuthScopesToMySQLOAuthScopes};
+function convertOAuthScopeToMySQLOAuthScope(scope: OAuthScope) : OAuthScopeMySQLConv{
+    switch(scope){
+        case 'basic_info':
+            return OAuthScopeMySQLConv.basic_info;
+        case 'storage':
+            return OAuthScopeMySQLConv.storage;
+        default:
+            throw new PDKInnerArgumentError(['scope']);
+    }
+}
+
+export {convertMySQLOAuthScopesToOAuthScopes, convertOAuthScopesToMySQLOAuthScopes, convertMySQLOAuthScopeToOAuthScope, convertOAuthScopeToMySQLOAuthScope};
 
 class OAuthTokenFactoryMySQL implements OAuthTokenFactory{
     constructor(public mysqlConnection : Connection, protected oAuthSystemSetting : OAuthSystemSetting, public publicKey : string, public privateKey : string, public signAlgorithm : 'RS256' | 'RS384' | 'RS512'){
