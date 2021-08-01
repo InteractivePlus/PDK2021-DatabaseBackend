@@ -1,13 +1,13 @@
 {
-  "name": "@interactiveplus/pdk2021-avatar-mysql",
+  "name": "@interactiveplus/pdk2021-databasebackend",
   "version": "0.0.1",
-  "description": "Core Library for Backend JS/TS Developmenet",
+  "description": "MySQL + JWT Implementions of PDK2021 Abstract Backend Storage Interfaces. ",
   "scripts": {
     "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "npx eslint . --ext .js,.jsx,.ts,.tsx"
   },
-  "author": "Ziteng Du",
+  "author": "Yunhao Cao & Siqi Wu",
   "license": "MIT",
   "devDependencies": {
     "@types/simple-sha1": "^3.0.0",

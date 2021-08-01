@@ -42,6 +42,10 @@ class MaskFactoryMySQL implements MaskIDEntityFactory{
         return this.maskIDLength;
     }
 
+    isMaskIDNumber() : boolean{
+        return false;
+    }
+
     getOAuthSystemSetting() : BackendOAuthSystemSetting{
         return this.oAuthSystemSetting;
     }

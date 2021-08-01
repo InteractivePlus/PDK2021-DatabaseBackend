@@ -5,6 +5,8 @@ import { APPEntityFactory } from "@interactiveplus/pdk2021-backendcore/dist/Abst
 import { UserEntityFactory } from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/User/UserEntityFactory";
 import { APPGroupEntityFactory } from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/RegisteredAPPGroup/APPGroupEntityFactory";
 import { UserGroupFactory } from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/UserGroup/UserGroupFactory";
+import { TicketRecordFactory } from "../../../PDK2021-BackendCore/dist/AbstractFactoryTypes/EXT-Ticket/TicketRecordFactory";
+import { UserTokenFactory } from "../../../PDK2021-BackendCore/dist/AbstractFactoryTypes/User/UserTokenFactory";
 
 function getMySQLTypeFor(isNumber : boolean, maxLen : number, exactLen?: number) : string{
     if(isNumber){
@@ -25,7 +27,7 @@ function getMySQLTypeForUserUID(userEntityFactory: UserEntityFactory){
 export {getMySQLTypeForUserUID};
 
 function getMySQLTypeForMaskIDUID(maskIDEntityFactory: MaskIDEntityFactory){
-    return getMySQLTypeFor(false,maskIDEntityFactory.getMaskIDMaxLength(), maskIDEntityFactory.getMaskExactLength !== undefined ? maskIDEntityFactory.getMaskExactLength() : undefined);
+    return getMySQLTypeFor(maskIDEntityFactory.isMaskIDNumber(),maskIDEntityFactory.getMaskIDMaxLength(), maskIDEntityFactory.getMaskIDExactLength !== undefined ? maskIDEntityFactory.getMaskIDExactLength() : undefined);
 }
 
 export {getMySQLTypeForMaskIDUID};
@@ -65,3 +67,15 @@ function getMySQLTypeForUserGroupID(userGroupFactory : UserGroupFactory){
 }
 
 export {getMySQLTypeForUserGroupID};
+
+function getMySQLTypeForTicketID(ticketRecordFactory: TicketRecordFactory){
+    return getMySQLTypeFor(ticketRecordFactory.isTicketIDNumber(),ticketRecordFactory.getTicketIDMaxLen(),ticketRecordFactory.getTicketIDExactLen !== undefined ? ticketRecordFactory.getTicketIDExactLen() : undefined);
+}
+
+export {getMySQLTypeForTicketID};
+
+function getMySQLTypeForUserAccessToken(userTokenFactory: UserTokenFactory){
+    return getMySQLTypeFor(false,userTokenFactory.getAccessTokenMaxLen(),userTokenFactory.getAccessTokenExactLen !== undefined ? userTokenFactory.getAccessTokenExactLen() : undefined);
+}
+
+export {getMySQLTypeForUserAccessToken};
