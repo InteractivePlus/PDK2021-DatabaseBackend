@@ -155,7 +155,7 @@ class OAuthAuthCodeFactoryMySQL implements AuthorizationCodeEntityFactory{
         return createdEntity;
     }
 
-    getAuthCodeFromDBRow(dbRow : any) : AuthorizationCodeEntity{
+    static getAuthCodeFromDBRow(dbRow : any) : AuthorizationCodeEntity{
         if(
             !('auth_code' in dbRow)
             || !('auth_method' in dbRow)
@@ -216,7 +216,7 @@ class OAuthAuthCodeFactoryMySQL implements AuthorizationCodeEntityFactory{
         }else if(fetchedData.result.length < 1){
             return undefined;
         }
-        return this.getAuthCodeFromDBRow(fetchedData.result[0]);
+        return OAuthAuthCodeFactoryMySQL.getAuthCodeFromDBRow(fetchedData.result[0]);
     }
     async verifyAuthCode(authCode: string, authMethod?: OAuthAuthorizationMethod, clientID?: string, maskUID?: MaskUID, codeVerifier?: string): Promise<boolean> {
         let fetchedAuthCode = await this.findAuthCode(authCode,authMethod,clientID,maskUID);
@@ -512,7 +512,7 @@ class OAuthAuthCodeFactoryMySQL implements AuthorizationCodeEntityFactory{
 
         for(let i = 0; i < fetchResult.result.length; i++){
             let currentRow = fetchResult.result[i];
-            allParsedEntities.push(this.getAuthCodeFromDBRow(currentRow));
+            allParsedEntities.push(OAuthAuthCodeFactoryMySQL.getAuthCodeFromDBRow(currentRow));
         }
         return new SearchResult(allParsedEntities.length,allParsedEntities);
     }

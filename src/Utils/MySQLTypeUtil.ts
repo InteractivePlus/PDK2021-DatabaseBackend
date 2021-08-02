@@ -5,8 +5,8 @@ import { APPEntityFactory } from "@interactiveplus/pdk2021-backendcore/dist/Abst
 import { UserEntityFactory } from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/User/UserEntityFactory";
 import { APPGroupEntityFactory } from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/RegisteredAPPGroup/APPGroupEntityFactory";
 import { UserGroupFactory } from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/UserGroup/UserGroupFactory";
-import { TicketRecordFactory } from "../../../PDK2021-BackendCore/dist/AbstractFactoryTypes/EXT-Ticket/TicketRecordFactory";
-import { UserTokenFactory } from "../../../PDK2021-BackendCore/dist/AbstractFactoryTypes/User/UserTokenFactory";
+import { TicketRecordFactory } from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/EXT-Ticket/TicketRecordFactory";
+import { UserTokenFactory } from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/User/UserTokenFactory";
 
 function getMySQLTypeFor(isNumber : boolean, maxLen : number, exactLen?: number) : string{
     if(isNumber){
