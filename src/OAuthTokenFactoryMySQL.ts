@@ -1,5 +1,5 @@
 import {Connection} from 'mysql2';
-import { OAuthTokenCreateInfo, OAuthTokenFactory, OAuthTokenFactoryInstallInfo } from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/OAuth/Token/OAuthTokenFactory";
+import { OAuthTokenCreateInfo, OAuthTokenFactory, OAuthTokenFactoryGrantHistorySearchResult, OAuthTokenFactoryInstallInfo } from "@interactiveplus/pdk2021-backendcore/dist/AbstractFactoryTypes/OAuth/Token/OAuthTokenFactory";
 import { MaskUID } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/MaskID/MaskIDEntity";
 import { OAuthAccessToken, OAuthRefreshToken, OAuthToken } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/OAuth/Token/OAuthToken";
 import { APPClientID, APPUID } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/RegisteredAPP/APPEntityFormat";
@@ -11,6 +11,8 @@ import jwt, { JwtPayload } from 'jsonwebtoken';
 import { OAuthScope } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/OAuth/OAuthScope';
 import { generateRandomHexString } from '@interactiveplus/pdk2021-common/dist/Utilities/HEXString';
 import { UserEntityUID } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/User/UserEntity';
+import { SearchResult } from '../../pdk2021-common/dist/InternalDataTypes/SearchResult';
+import { fetchMySQL, fetchMySQLCount } from './Utils/MySQLFetchUtil';
 
 interface OAuthTokenPayload{
     maskId: MaskUID,
@@ -371,6 +373,108 @@ class OAuthTokenFactoryMySQL implements OAuthTokenFactory{
                 }
             })
         });
+    }
+
+    async getAuthorizedRecordCountByMaskID(maskID: MaskUID): Promise<number> {
+        let selectWhereClause = 'mask_uid = ?';
+        let selectCountRst = await fetchMySQLCount(this.mysqlConnection,'oauth_tokens',selectWhereClause,[maskID],true);
+        return selectCountRst;
+    }
+    async listAuthorizedRecordsByMaskID(maskID: MaskUID, numLimit?: number, startPosition?: number): Promise<SearchResult<OAuthTokenFactoryGrantHistorySearchResult>> {
+        let selectStatement = 'SELECT mask_uid, user_uid, client_id, app_uid, refresh_token, valid, scopes FROM oauth_tokens WHERE mask_uid = ?';
+        if(numLimit !== undefined){
+            selectStatement += ' LIMIT ' + numLimit.toString();
+        }
+        if(startPosition !== undefined){
+            selectStatement += ' OFFSET ' + startPosition.toString();
+        }
+        selectStatement += ';';
+        let selectRst = await fetchMySQL(this.mysqlConnection,selectStatement,[maskID],true);
+        if(!('length' in selectRst.result)){
+            throw new PDKUnknownInnerError('Unexpected Datatype Received When fetching data from OAuthToken System');
+        }
+        let allGrantHistory : OAuthTokenFactoryGrantHistorySearchResult[] = [];
+        for(let i=0; i<selectRst.result.length;i++){
+            let currentRow : any = selectRst.result[i];
+            allGrantHistory.push({
+                maskUID: currentRow.mask_uid,
+                userUID: currentRow.user_uid,
+                clientID: currentRow.client_id,
+                appUID: currentRow.app_uid,
+                identifier: currentRow.refresh_token,
+                valid: currentRow.valid === 1,
+                scopes: convertMySQLOAuthScopesToOAuthScopes(currentRow.scopes)
+            });
+        }
+        return new SearchResult<OAuthTokenFactoryGrantHistorySearchResult>(allGrantHistory.length,allGrantHistory);
+    }
+    async clearAuthorizedRecordsByMaskID(maskID: MaskUID, numLimit?: number, startPosition?: number): Promise<void> {
+        let deleteStatement = 'DELETE FROM oauth_tokens WHERE mask_uid = ?';
+        if(numLimit !== undefined){
+            deleteStatement += ' LIMIT ' + numLimit.toString();
+        }
+        if(startPosition !== undefined){
+            deleteStatement += ' OFFSET ' + startPosition.toString();
+        }
+        deleteStatement += ';';
+        await fetchMySQL(this.mysqlConnection,deleteStatement,[maskID],true);
+        return;
+    }
+    async getAuthorizedRecordCountByUID(uid: UserEntityUID): Promise<number> {
+        let selectWhereClause = 'user_uid = ?';
+        let selectCountRst = await fetchMySQLCount(this.mysqlConnection,'oauth_tokens',selectWhereClause,[uid],true);
+        return selectCountRst;
+    }
+    async listAuthorizedRecordsByUID(uid: UserEntityUID, numLimit?: number, startPosition?: number): Promise<SearchResult<OAuthTokenFactoryGrantHistorySearchResult>> {
+        let selectStatement = 'SELECT mask_uid, user_uid, client_id, app_uid, refresh_token, valid, scopes FROM oauth_tokens WHERE user_uid = ?';
+        if(numLimit !== undefined){
+            selectStatement += ' LIMIT ' + numLimit.toString();
+        }
+        if(startPosition !== undefined){
+            selectStatement += ' OFFSET ' + startPosition.toString();
+        }
+        selectStatement += ';';
+        let selectRst = await fetchMySQL(this.mysqlConnection,selectStatement,[uid],true);
+        if(!('length' in selectRst.result)){
+            throw new PDKUnknownInnerError('Unexpected Datatype Received When fetching data from OAuthToken System');
+        }
+        let allGrantHistory : OAuthTokenFactoryGrantHistorySearchResult[] = [];
+        for(let i=0; i<selectRst.result.length;i++){
+            let currentRow : any = selectRst.result[i];
+            allGrantHistory.push({
+                maskUID: currentRow.mask_uid,
+                userUID: currentRow.user_uid,
+                clientID: currentRow.client_id,
+                appUID: currentRow.app_uid,
+                identifier: currentRow.refresh_token,
+                valid: currentRow.valid === 1,
+                scopes: convertMySQLOAuthScopesToOAuthScopes(currentRow.scopes)
+            });
+        }
+        return new SearchResult<OAuthTokenFactoryGrantHistorySearchResult>(allGrantHistory.length,allGrantHistory);
+    }
+    async clearAuthorizedRecordsByUID(uid: UserEntityUID, numLimit?: number, startPosition?: number): Promise<void> {
+        let deleteStatement = 'DELETE FROM oauth_tokens WHERE user_uid = ?';
+        if(numLimit !== undefined){
+            deleteStatement += ' LIMIT ' + numLimit.toString();
+        }
+        if(startPosition !== undefined){
+            deleteStatement += ' OFFSET ' + startPosition.toString();
+        }
+        deleteStatement += ';';
+        await fetchMySQL(this.mysqlConnection,deleteStatement,[uid],true);
+        return;
+    }
+    async deleteAuthorizedAPPGrantByHistoryIdentifier(idenfifier: string | number, operatorUserUID?: UserEntityUID): Promise<void> {
+        let deleteStatement = 'DELETE FROM oauth_tokens WHERE refresh_token = ?';
+        let allParams : any[] = [idenfifier];
+        if(operatorUserUID !== undefined){
+            deleteStatement += ' AND user_uid = ?';
+            allParams.push(operatorUserUID);
+        }
+        deleteStatement += ';';
+        await fetchMySQL(this.mysqlConnection,deleteStatement,allParams,true);
+        return;
     }
 
     install(params: OAuthTokenFactoryInstallInfo): Promise<void> {

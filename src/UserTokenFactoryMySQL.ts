@@ -8,6 +8,7 @@ import { UserEntityUID } from "@interactiveplus/pdk2021-common/dist/AbstractData
 import { PDKItemExpiredOrUsedError, PDKUnknownInnerError } from "@interactiveplus/pdk2021-common/dist/AbstractDataTypes/Error/PDKException";
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import { generateRandomHexString } from "@interactiveplus/pdk2021-common/dist/Utilities/HEXString";
+import { fetchMySQL } from "./Utils/MySQLFetchUtil";
 
 interface UserTokenPayload{
     userId: UserEntityUID,
@@ -205,6 +206,11 @@ class UserTokenFactoryMySQL implements UserTokenFactory{
                 }
             })
         })
+    }
+
+    async clearUserOwnedToken(uid: UserEntityUID): Promise<void> {
+        let deleteStatement = 'DELETE FROM user_tokens WHERE uid = ?;';
+        await fetchMySQL(this.mysqlConnection,deleteStatement,[uid],true);
     }
 
     install(params: UserTokenFactoryInstallInfo): Promise<void> {
