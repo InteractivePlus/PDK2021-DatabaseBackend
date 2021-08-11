@@ -154,7 +154,7 @@ class VericodeFactoryMySQL implements VerificationCodeEntityFactory{
         )
     }
 
-    verifyVerificationCode(veriCode: VeriCodeEntityID, isShortCode: boolean, uid?: UserEntityUID, appuid?: APPUID, client_id?: APPClientID, mask_id?: MaskUID, useScope?: string | number): Promise<boolean> {
+    verifyVerificationCode(veriCode: VeriCodeEntityID, isShortCode: boolean, uid?: UserEntityUID, appuid?: APPUID | null, client_id?: APPClientID | null, mask_id?: MaskUID, useScope?: string | number): Promise<boolean> {
         return new Promise<boolean> (
             (resolve, reject) => {
                 let compareStatement = `SELECT count(*) as count FROM `;
@@ -225,7 +225,7 @@ class VericodeFactoryMySQL implements VerificationCodeEntityFactory{
         )
     }
 
-    verifyAndUseVerificationCode(veriCode: VeriCodeEntityID, isShortCode: boolean, uid?: UserEntityUID, appuid?: APPUID, client_id?: APPClientID, mask_id?: MaskUID, useScope?: string | number): Promise<boolean> {
+    verifyAndUseVerificationCode(veriCode: VeriCodeEntityID, isShortCode: boolean, uid?: UserEntityUID, appuid?: APPUID | null, client_id?: APPClientID | null, mask_id?: MaskUID, useScope?: string | number): Promise<boolean> {
         return new Promise<boolean> (
             (resolve, reject) => {
                 let updateStatement = `UPDATE `;
@@ -301,7 +301,7 @@ class VericodeFactoryMySQL implements VerificationCodeEntityFactory{
             'veriCodeID' CHAR(${this.getVerificationCodeExactLen()}) NOT NULL,
             'isShortID' TINYINT(0) NOT NULL,
             'relatedUser' ${getMySQLTypeForUserUID(params.userEntityFactory)} NOT NULL,
-            'relatedAPP' ${getMySQLTypeForAPPEntityUID(params.appEntityFactory)} NOT NULL,
+            'relatedAPP' ${getMySQLTypeForAPPEntityUID(params.appEntityFactory)},
             'relatedMaskID' ${getMySQLTypeForMaskIDUID(params.maskIDEntityFactory)} VARCHAR(100),
             'relatedAPPClientID' ${getMySQLTypeForAPPClientID(params.appEntityFactory)},
             'relatedOAuthToken' ${getMySQLTypeForOAuthToken(params.oAuthTokenEntityFactory)},
@@ -320,7 +320,7 @@ class VericodeFactoryMySQL implements VerificationCodeEntityFactory{
             'veriCodeID' CHAR(${this.getVerificationCodeShortCodeExactLen()}) NOT NULL,
             'isShortID' TINYINT(1) NOT NULL
             'relatedUser' ${getMySQLTypeForUserUID(params.userEntityFactory)} NOT NULL,
-            'relatedAPP' ${getMySQLTypeForAPPEntityUID(params.appEntityFactory)} NOT NULL,
+            'relatedAPP' ${getMySQLTypeForAPPEntityUID(params.appEntityFactory)},
             'relatedMaskID' ${getMySQLTypeForMaskIDUID(params.maskIDEntityFactory)} VARCHAR(100),
             'relatedAPPClientID' ${getMySQLTypeForAPPClientID(params.appEntityFactory)},
             'relatedOAuthToken' ${getMySQLTypeForOAuthToken(params.oAuthTokenEntityFactory)},

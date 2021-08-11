@@ -11,7 +11,7 @@ import jwt, { JwtPayload } from 'jsonwebtoken';
 import { OAuthScope } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/OAuth/OAuthScope';
 import { generateRandomHexString } from '@interactiveplus/pdk2021-common/dist/Utilities/HEXString';
 import { UserEntityUID } from '@interactiveplus/pdk2021-common/dist/AbstractDataTypes/User/UserEntity';
-import { SearchResult } from '../../pdk2021-common/dist/InternalDataTypes/SearchResult';
+import { SearchResult } from '@interactiveplus/pdk2021-common/dist/InternalDataTypes/SearchResult';
 import { fetchMySQL, fetchMySQLCount } from './Utils/MySQLFetchUtil';
 
 interface OAuthTokenPayload{
